@@ -45,6 +45,8 @@ description: |
    - *心智*: 遇到紧急技术故障，急需专家图纸或排查诊断工具。
    - *截流打法*: 提供专业排查排线建议，顺承引入自营检测工具或高匹配配件。
 
+详见心智深度文档：[references/commercial_intent_archetypes.md](references/commercial_intent_archetypes.md)。
+
 ---
 
 ## 双轨转化模型 (Dual-Track Conversion Model)
@@ -57,22 +59,52 @@ description: |
   - **红线底线**：严禁在未征得同意或未实际发信时公开说“我已私信你”。必须采用真诚邀请制，引导对方主动发信：
     > *"I benchmarked the pricing tiers and feature limits on a spreadsheet. If you want the comparison doc, feel free to shoot me a DM and I'll share it."*
     > （“我把定价阶梯和功能限制整理成了一张对比表格。如果你需要这份对比文档，随时私信我，我发你。”）
-  - **威力与安全**：对方主动发起的私信，在 Reddit 机制下属于“受邀合法回复”，100% 免除 Spam 举报风险！
+  - **合规依据**：受邀对话机制遵循社区规则，显著降低系统 Spam 拦截与被举报风险（发送前必须获取用户明确授权）。
 
 ### 轨道 2：1v1 私信深度攻坚（私域诊断 · 联盟与工具收割）
-- **Round 1 (破冰共情 · 兑现承诺)**：
-  - 发送私信，直接交付公开帖承诺的对比表格、排查图纸或避坑指南，0 推销、0 废话，彻底消除防备心理。
-- **Round 2 (痛点诊断 · 场景实测)**：
-  - 深入排查客户的具体配置与核心瓶颈，点出推荐方案的 ROI 和不可替代性。
-- **Round 3 (精准逼单 · 联盟/工具直达)**：
-  - 顺承送出匹配的自营垂直工具或联盟推荐链接，附带 FTC 规范披露 (`(disclosure: affiliate link)`) 与专属折扣码。
-- **异议抗拒化解库 (Objection Killers)**：
-  - 针对“竞品优势在哪？”、“有没有隐形成本？”、“收费模式”等常见顾虑，预置高情商、懂行的化解策略。
+- **Round 1 (破冰共情 · 兑现承诺)**：直接交付公开帖承诺的对比表格、排查图纸或避坑指南，0 推销，消除防备。
+- **Round 2 (痛点诊断 · 场景实测)**：深入排查客户的具体配置与核心瓶颈，点出推荐方案的 ROI 和不可替代性。
+- **Round 3 (精准逼单 · 联盟/工具直达)**：顺承送出匹配的自营垂直工具或联盟推荐链接，附带 FTC 规范披露 (`(disclosure: affiliate link)`) 与专属折扣码。
+- **异议抗拒化解库 (Objection Killers)**：化解价格贵、竞品功能多、迁移成本高、信任顾虑等常见阻力。
 
-### 轨道 3：80/20 安全洗号与硬风控死线 (Anti-Ban Guardrails)
-- **80% 纯干货洗号贴**：零外链、零品牌提及，纯技术解答积累社区声誉。
-- **20% 软植入引流贴**：高意向贴使用品牌直搜词（`brand_search` 模式）或单条垂直工具短链。
-- **频控铁律**：单账号每日最多发 **8 篇**，发帖后强制进入 **45 分钟** 冷却期。
+详见聊单话术指南：[references/dual_track_dm_playbook.md](references/dual_track_dm_playbook.md)。
+
+### 轨道 3：动态频控与分级风控体系 (Dynamic Anti-Ban Guardrails)
+- **平台动态配额与冷却**：频控非全局单一硬死线，代码依据生效凭据类型动态约束：
+  - **Reddit**：单号 8 篇/日，发帖后冷却 45 分钟；遭遇 HTTP 429 自动提取 `Retry-After`（默认 600s）并智能顺延；
+  - **X (Cookie 会话)**：单号 5 篇/日，冷却 45 分钟；采用 `curl_cffi` Chrome 131 指纹防 344 封禁；
+  - **论坛类**：单号 15 篇/日，冷却 15 分钟；
+  - **X 官方 API / 其他通道**：单号 25 篇/日，冷却 15 分钟。
+- **账号成熟度梯度 (`get_account_maturity_tier`)**：
+  - COLD (Karma < 10)：新号孵化，0% 外链纯干货洗号模式；
+  - WARMING (Karma 10~99)：账号成长期，滚动外链比 <= 10%；
+  - MATURE (Karma >= 100)：成熟权重号，滚动外链比 <= 20%。
+- **双重外链守卫机制**：
+  - **滚动外链比守卫 (`check_rolling_link_ratio`)**：最近 10 次回复带链超 20% 时，自动降级为品牌直搜模式（`brand_search`）；
+  - **𝕏 连续外链守卫 (Consecutive Link Guard)**：若 Web Cookie 账号上一条推文已包含链接，本次带链自动降级为 Profile Bio 置顶引流（如 `(see bio for link)`），杜绝背靠背留链被判 Spam。
+- **2-Tweet Thread 串推反自动化与熔断**：
+  - 串推次推在主推发出后注入 2.5s ~ 4.5s 自然延迟；若次推遭遇 344/226/429 报错，连带触发该凭据 24 小时静默冷却。
+- **账号隔离与限流多账号精准解耦**：
+  - 检测跨日继承的 `quarantine_until`（Shadowban 隔离静默期）与 `rate_limit_until`（官方频控保护期）；
+  - 75 秒公开可见性巡检中的隔离惩罚严格绑定具体 `credential_id`，杜绝单号封禁影响健康账号池。
+- **立即发射强制前置门禁**：
+  - 无论是 Web 界面 `submit_now` 还是 API `immediate=true`，发包前均强制通过 `check_rate_limits`，处于保护期的账号安全拦截并顺延，绝不盲目撞墙。
+- **特权参数声明**：`--force` 仅跳过冷却倒计时（仍受单日上限保护）；`--force-link` 强制带链跳过 20% 门禁。两者增加封禁风险，绝非默认参数或合法规避手段，使用须获操作员显式授权。系统不作 100% 免封绝对保证。
+
+详见完整风控与命令副作用说明：[references/anti_ban_and_quota_rules.md](references/anti_ban_and_quota_rules.md)。
+
+---
+
+## 系统能力与 Web 架构速览 (System Capabilities)
+
+RedSignal 具备多项由后端 API 与 SQLite 数据表支撑的系统级能力：
+- **待发队列生命周期 (`reply_queue`)**：支持即时发送 (`submit_now`)、任务取消 (`cancel`)、失败重试 (`retry`)、二次跟进 (`follow_up`)、动态风格切换 (`switch_style`) 与安全审查 (`evaluate_safety`)。
+- **凭据保险箱与健康巡检 (`Vault` & `doctor`)**：集中纳管多平台凭据，动态评估账号成熟度等级与隔离保护状态。
+- **藤壶 SEO 与 SERP 占坑雷达 (`barnacle.py` & `audit`)**：挖掘 Google 首页高意向讨论帖，自动生成常青解答草稿，巡检回帖存活状态（`LIVE`/`LOCKED`/`ARCHIVED`/`REMOVED`）。
+- **短链转化与动态路由 (`short_links` & `/r/{code}`)**：基于线索上下文自动匹配单点工具，携带 UTM 参数，实时追踪独立点击与商机捕获。
+- **后台自动化与移动推送**：Crontab 定时调度，Bark 实时私信推送与预警。
+
+详见项目能力架构文档：[references/project_capabilities.md](references/project_capabilities.md)。
 
 ---
 
@@ -84,52 +116,62 @@ description: |
 
 ## 工具箱命令集 (CLI Toolkit)
 
-| 动作 | 核心命令 | 说明 |
+所有命令均支持 `--json` 参数以输出原始结构化数据供下游程序解析。
+
+| 动作 | 核心命令与常用参数 | 说明与副作用边界 |
 |---|---|---|
-| **扫描最新线索** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py radar --limit 5` | 查看最新高意向商机 |
-| **金矿意向筛选** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py radar --intent affiliate --limit 5` | 筛选替代、选型、口碑、折扣等高转化帖子 |
-| **项目专属扫描** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py radar --campaign <id> --limit 5` | 针对特定营销/联盟项目专属雷达扫描 |
-| **实时抓取刷新** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py radar --sync --limit 5` | 通过 Cookie 会话即时聚合抓取最新帖子 |
-| **联盟攻坚收割** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py affiliate <hit_id> [--product <name>] [--url <link>]` | 生成针对竞品弃用/对比的公开藤壶回帖、逆向钩子与 1v1 私信攻坚闭环 |
-| **自营私信攻坚** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py dm <hit_id>` | 针对自营独立站/工具生成公开私信钩子、一键直达发信链接与 3 轮心智流 |
-| **项目矩阵列表** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py campaigns` | 查看当前所有运行中的自营与联盟营销项目 |
-| **长线资产大盘** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py status [--campaign <id>]` | 查看长线项目健康度、代码库状态、系统 Crontab 调度与官方镜像连通性 |
-| **凭证健康体检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py doctor` | 一键检测 Reddit、X、Bark 与 AI 凭证连通性，失效自动预警 |
-| **藤壶存活巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py audit [--limit 10]` | 巡检公域已发回帖存活状态 (LIVE/LOCKED/REMOVED) 与 Google SERP 占坑健康度 |
-| **私信全自动代聊** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py inbox [--platform all\|reddit\|x] [--dry-run]` | 轮询 Reddit 与 X (Twitter) 未读私信，AI 研判意图并全自动多轮跟进回复+Bark播报 (内置 UTM 追踪与 Lead Magnet 诱饵) |
-| **注册新项目/Offer** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py add-campaign --name <name> --url <url>` | 注册任意新 SaaS、电商或联盟 Offer，自动生成 4 个转化承接点 |
-| **风控配额巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py quota` | 检查今日已发条数、剩余配额与 45m 冷却倒计时 |
-| **发帖安全预演** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." --dry-run` | 验证风控、匹配落地页与短链，不发网 |
-| **确认真实发射** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." --mode brand_search` | 用户批准后正式发送回复并扣减配额 |
+| **扫描最新线索** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py radar [--limit 10] [--platform all\|reddit\|x\|forum] [--sub <sub>] [--keyword <kw>] [--campaign <id>] [--intent <type>] [--sync] [--json]` | 默认仅离线查询本地 SQLite 库；添加 `--sync` 会发起已认证网络拉取并写入数据库 |
+| **金矿意向筛选** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py radar --intent affiliate [--limit 10] [--json]` | 按 5 大金矿商业意图快速筛选高质量线索 (affiliate/alternative/compare/deal/review/troubleshoot) |
+| **藤壶 SEO 占坑** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py barnacle <keyword> [--limit 8] [--auto-draft] [--json]` | 检索 Google 首页高权重讨论帖，计算机会得分；`--auto-draft` 自动起草常青技术解答 |
+| **发帖安全预演** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." --dry-run [--mode brand_search\|link\|direct] [--quote] [--thread-text "..."] [--account <id>] [--json]` | 纯本地预演：校验线索与凭据、计算冷却与外链降级预览；不发网、不写数据库、不扣配额 |
+| **确认真实发射** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." [--mode brand_search] [--quote] [--thread-text "..."] [--account <id>] [--json]` | 用户显式授权后向社媒真实发帖，记录队列并扣减配额。支持 X 引用推文 (`--quote`) 与串推 (`--thread-text`) |
+| **私信全自动代聊** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py inbox [--platform all\|reddit\|x\|twitter] [--dry-run] [--json]` | 轮询未读私信；`--dry-run` 仍会联网拉取私信、调用 AI、写草稿入库并推 Bark，仅跳过外部回复发送 |
+| **藤壶存活巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py audit [--limit 10] [--type replies\|targets\|all] [--fast] [--json]` | 巡检公域回帖与 SERP 占坑存活状态 (LIVE/LOCKED/ARCHIVED/REMOVED)；`--fast` 跳过联网检测 |
+| **凭证健康体检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py doctor [--json]` | 主动发起网络测试，一键排查 Reddit、X、Bark 与 AI 接口会话可用性与失效告警 |
+| **自营私信攻坚** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py dm <hit_id> [--json]` | 针对自营独立站/工具生成公开私信钩子、一键直达发信链接与 3 轮心智攻坚流 |
+| **3轮心智聊单** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py playbook <hit_id> [--json]` | 生成针对线索的 3 阶段定制化聊单话术与异议抗拒化解策略 |
+| **联盟攻坚收割** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py affiliate <hit_id> [--product <name>] [--url <link>] [--competitor <comp>] [--code <code>] [--json]` | 生成针对竞品弃用/对比的客观藤壶回帖、逆向钩子与带 FTC 披露的联盟攻坚方案 |
+| **项目矩阵列表** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py campaigns [--json]` | 查看当前所有运行中的自营与联盟营销 Campaign 矩阵 |
+| **注册新项目/Offer** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py add-campaign --name <name> --url <url> [--subreddits <subs>] [--keywords <kws>] [--desc <desc>] [--pitch <pitch>] [--json]` | 注册新产品或 Offer，自动生成监听规则与转化承接配置 |
+| **风控配额巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py quota [--json]` | 查看各账号类型配额使用量、冷却倒计时、隔离与限流状态（支持 `rate_limited` 与 `quarantined` 跨日继承）、连续外链与 Rolling Link Ratio 占比 |
+| **转化落地工具库** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py tools [--json]` | 检索当前可用于动态路由承接流量的高转化垂直落地单点工具清单 |
+| **待发队列查看** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py queue [--json]` | 查看近期回帖队列状态机（已提交、待处理、失败等） |
+| **长线资产大盘** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py status [--campaign <id>] [--json]` | 查看统一资产健康度、本地代码库状态、系统 Crontab 调度并向官方镜像发起网络探针 |
 
 ---
 
 ## 标准执行工作流 (Standard Operating Procedure)
 
-当用户触发 `/redsignal` 或要求截流/私信转化/联盟推广时，遵循以下 4 步作业流程：
+当用户触发 `/redsignal` 或要求截流、私信转化、联盟推广、藤壶占坑时，遵循以下 4 步作业流程：
 
 ### 步骤 1：雷达探测与意图研判 (Radar Discovery & Intent Detection)
-执行 `radar` 命令（支持 `--intent` 与 `--campaign` 过滤）：
-- 识别 5 大高转化意图（🔥 替代弃用、⚖️ 选型对比、⭐ 真实口碑、🏷️ 折扣防线、🛠️ 痛点排查）；
-- 向用户展示 2~4 条最具商业价值的帖子摘要（ID、作者、版块、核心痛点、哥飞机会点与意图标签）。
+执行 `radar` 命令（支持 `--intent` 与 `--campaign` 过滤）或 `barnacle` 检索 Google 首页坑位：
+- 识别 5 大高转化商业意图（🔥 替代弃用、⚖️ 选型对比、⭐ 真实口碑、🏷️ 折扣防线、🛠️ 痛点排查）；
+- 向用户展示 2~4 条最具商业价值的帖子摘要（ID、作者、平台、核心痛点、机会点与意图标签）。
 
 ### 步骤 2：双轨生成与闭环设计 (Dual-Track Drafting)
-根据项目类型选择对应策略：
+根据项目类型与场景选择对应策略：
 1. **如果是 Affiliate 联盟营销或竞品截流**：
-   - 运行 `affiliate <hit_id> --product "..." --url "..."`；
+   - 运行 `affiliate <hit_id> [--product <name>] [--url <link>]`；
    - 生成 0 外链客观对比藤壶公域回复，末尾嵌入逆向私信邀请钩子；
    - 生成 1v1 私信闭环（破冰正文、官方一键预填发信链接、3 轮心智攻坚与 FTC 规范披露）。
 2. **如果是自营独立站或垂直工具站**：
    - 运行 `dm <hit_id>`；
-   - 自动匹配垂直落地单点工具（英文版 `name_en`），生成上下文一致的逆向私信钩子与官方发信直达链接。
+   - 自动匹配垂直落地单点工具（优先英文规范名 `name_en`），生成上下文一致的逆向私信钩子与发信直达链接。
+3. **如果是 Google 搜索占坑**：
+   - 运行 `barnacle <keyword> --auto-draft`，生成权威常青解答草稿。
 
-### 步骤 3：前置风控核验 (Pre-flight Quota Check)
-在发帖前运行 `quota` 检查：
-- 确认今日已发条数 < 8；
-- 确认距离上次发帖已满 45 分钟（或报告还剩多少分钟）；
-- 确认账号无隔离状态。
+### 步骤 3：动态前置风控核验 (Dynamic Pre-flight Safety Check)
+在发帖前运行 `quota` 检查当前账号状态：
+- 确认今日已发条数未达该平台单日上限（Reddit: 8, X Cookie: 5, Forum: 15, API: 25）；
+- 确认距离上次发帖已满足冷却间隔要求（或报告还需冷却多少分钟）；
+- 确认账号未处于 `quarantine_until` 隔离保护期或 `rate_limit_until` 官方限流期（系统前置门禁会自动拒绝并顺延违规发帖）；
+- 确认当前外链比例未超出账号成熟度等级允许的 Rolling Link Ratio（超标自动降级为品牌搜索模式）；
+- 若针对 𝕏 Web Cookie 账号带链发帖，核验上一条推文是否已包含外链（若有则连续外链守卫会自动降级为 Profile Bio 推荐）。
 
-### 步骤 4：用户授权与安全发射 (Verified Human-in-the-Loop Dispatch)
-- 向用户清晰展示拟发送内容与目标帖子；
-- **询问确认**：“如确认无误，请回复‘确认发射’或‘发’，我将立即为你安全发布到社媒。”
-- 用户确认后执行 `post` 发送，返回直达 URL 并更新冷却配额。
+### 步骤 4：人机协同确认与安全发射 (Verified Human-in-the-Loop Dispatch)
+- 首先执行 `post <hit_id> --text "..." --dry-run` 验证降级与工具路由效果；
+- 向用户清晰展示拟发送内容、目标链接、账号名称与外链模式；
+- **提示特权参数约束**：若需使用 `--force` 或 `--force-link`，明确提示其风险并仅在操作员显式授权下加入；
+- **询问确认**：“拟发送内容已就绪。如确认无误，请回复‘确认发射’或‘发’，我将立即为你安全发布到社媒。”
+- 用户确认后执行正式 `post` 发送，返回直达 URL 并更新冷却配额。

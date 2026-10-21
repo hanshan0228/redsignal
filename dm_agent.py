@@ -698,9 +698,10 @@ def check_session_health() -> list[dict]:
                 })
 
     # 3. Bark Mobile Push Check
-    if BARK_WEBHOOK:
+    bark_url = BARK_WEBHOOK or next((l.get("webhook") for l in cfg.get("listeners", []) if l.get("webhook") and ("day.app" in l.get("webhook") or "bark" in l.get("webhook").lower())), "")
+    if bark_url:
         try:
-            b_resp = requests.get(f"{BARK_WEBHOOK.rstrip('/')}/ping", timeout=5)
+            b_resp = requests.get(f"{bark_url.rstrip('/')}/ping", timeout=5)
             if b_resp.status_code == 200 and b_resp.json().get("code") == 200:
                 diagnostics.append({
                     "platform": "bark",
@@ -725,6 +726,14 @@ def check_session_health() -> list[dict]:
                 "account": "iPhone Device",
                 "details": str(e)[:60]
             })
+    else:
+        diagnostics.append({
+            "platform": "bark",
+            "name": "Bark Mobile Push",
+            "status": "warning",
+            "account": "iPhone Device",
+            "details": "BARK_WEBHOOK not configured"
+        })
 
     # 4. AI Gateway Check
     from ai import resolve_ai_cred
