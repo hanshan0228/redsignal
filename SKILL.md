@@ -94,10 +94,14 @@ description: |
 | **自营私信攻坚** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py dm <hit_id>` | 针对自营独立站/工具生成公开私信钩子、一键直达发信链接与 3 轮心智流 |
 | **项目矩阵列表** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py campaigns` | 查看当前所有运行中的自营与联盟营销项目 |
 | **长线资产大盘** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py status [--campaign <id>]` | 查看长线项目健康度、代码库状态、系统 Crontab 调度与官方镜像连通性 |
+| **凭证健康体检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py doctor` | 一键检测 Reddit、X、Bark 与 AI 凭证连通性，失效自动预警 |
+| **藤壶猎金雷达** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py barnacle -k <kw> [--limit 8] [--auto-draft]` | 直搜 Google Page 1 核心讨论帖，自动化健康诊断、机会打分与长效常青解答草稿生成 |
+| **藤壶存活巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py audit [--limit 10]` | 巡检公域已发回帖存活状态 (LIVE/LOCKED/REMOVED) 与 Google SERP 占坑健康度 |
+| **私信全自动代聊** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py inbox [--platform all\|reddit\|x] [--dry-run]` | 轮询 Reddit 与 X (Twitter) 未读私信，AI 研判意图并全自动多轮跟进回复+Bark播报 (内置 UTM 追踪与 Lead Magnet 诱饵) |
 | **注册新项目/Offer** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py add-campaign --name <name> --url <url>` | 注册任意新 SaaS、电商或联盟 Offer，自动生成 4 个转化承接点 |
-| **风控配额巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py quota` | 检查今日已发条数、剩余配额与 45m 冷却倒计时 |
-| **发帖安全预演** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." --dry-run` | 验证风控、匹配落地页与短链，不发网 |
-| **确认真实发射** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." --mode brand_search` | 用户批准后正式发送回复并扣减配额 |
+| **风控配额巡检** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py quota` | 检查今日已发条数、剩余配额、45m 冷却倒计时、Rolling Link Ratio (20%外链门禁) 与账号成熟度分层 |
+| **发帖安全预演** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." --dry-run` | 验证风控、发链率核验 (超20%自动降级为品牌词搜索)、匹配落地页与短链，不发网 |
+| **确认真实发射** | `/Users/han/redsignal/.venv/bin/python3 /Users/han/redsignal/redsignal_cli.py post <hit_id> --text "..." [--quote] [--thread-text "..."] [--force-link]` | 用户批准后正式发送回复并扣减配额 (X支持 `--quote` 引用推文扩量、`--thread-text` 2-Tweet Thread 串推留链及 `--force-link` 强制带链) |
 
 ---
 
@@ -120,11 +124,12 @@ description: |
    - 运行 `dm <hit_id>`；
    - 自动匹配垂直落地单点工具（英文版 `name_en`），生成上下文一致的逆向私信钩子与官方发信直达链接。
 
-### 步骤 3：前置风控核验 (Pre-flight Quota Check)
+### 步骤 3：前置风控核验 (Pre-flight Quota & Link Ratio Check)
 在发帖前运行 `quota` 检查：
 - 确认今日已发条数 < 8；
 - 确认距离上次发帖已满 45 分钟（或报告还剩多少分钟）；
-- 确认账号无隔离状态。
+- 确认账号无隔离状态；
+- 检查 Rolling Link Ratio（外链率）：最近 10 条发帖带链比是否触及 20% 红线，未触及可自然带软植入，超标则自动降级为品牌搜索词模式（Brand Search）。
 
 ### 步骤 4：用户授权与安全发射 (Verified Human-in-the-Loop Dispatch)
 - 向用户清晰展示拟发送内容与目标帖子；
