@@ -27,15 +27,15 @@ class TestDarkFleetAndAutomation(unittest.TestCase):
 
     def setUp(self):
         with get_db() as db:
-            db.execute("DELETE FROM hits WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%'")
-            db.execute("DELETE FROM reply_queue WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%'")
+            db.execute("DELETE FROM hits WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%' OR hit_id LIKE 'hit_prot_%'")
+            db.execute("DELETE FROM reply_queue WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%' OR hit_id LIKE 'hit_prot_%'")
             db.execute("DELETE FROM ai_learnings WHERE sample_text LIKE '%test resistor%'")
             db.execute("DELETE FROM account_quota WHERE credential_id LIKE 'test_%'")
 
     def tearDown(self):
         with get_db() as db:
-            db.execute("DELETE FROM hits WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%'")
-            db.execute("DELETE FROM reply_queue WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%'")
+            db.execute("DELETE FROM hits WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%' OR hit_id LIKE 'hit_prot_%'")
+            db.execute("DELETE FROM reply_queue WHERE hit_id LIKE 'hit_tg_test%' OR hit_id LIKE 'hit_aff_%' OR hit_id LIKE 'hit_reply_child%' OR hit_id LIKE 'hit_dm_test%' OR hit_id LIKE '%_fu_%' OR hit_id LIKE 'hit_prot_%'")
             db.execute("DELETE FROM ai_learnings WHERE sample_text LIKE '%test resistor%'")
             db.execute("DELETE FROM account_quota WHERE credential_id LIKE 'test_%'")
 
@@ -608,6 +608,95 @@ class TestDarkFleetAndAutomation(unittest.TestCase):
             self.assertIsInstance(ingest_data["data"]["offers_matrix"], list)
             self.assertGreaterEqual(len(ingest_data["data"]["offers_matrix"]), 1)
             self.assertEqual(ingest_data["data"]["offers_matrix"][0]["key"], "grind_calc")
+
+    def test_enqueue_reply_terminal_status_protection(self):
+        """Test enqueue_reply protects terminal statuses (submitted, visible, cancelled) against overwrite."""
+        from auto_responder import enqueue_reply
+
+        # 1. Protect submitted status
+        hit_id = "hit_prot_submitted_1"
+        lid = "lst_test"
+        with get_db() as db:
+            cur = db.execute(
+                """INSERT INTO reply_queue (hit_id, listener_id, reply_text, status, comment_id, submitted_at)
+                   VALUES (?, ?, 'original submitted text', 'submitted', 'c_submitted_1', 1700000000)""",
+                (hit_id, lid)
+            )
+            orig_id = cur.lastrowid
+
+        qid = enqueue_reply(
+            hit_id=hit_id,
+            listener_id=lid,
+            listener_name="Test Radar",
+            subreddit="golfcarts",
+            post_id="p1",
+            target_id="p1",
+            target_url="https://reddit.com/p1",
+            author="author1",
+            reply_text="new attempted draft text",
+            status="scheduled"
+        )
+        self.assertEqual(qid, orig_id)
+
+        with get_db() as db:
+            row = db.execute("SELECT status, reply_text, comment_id FROM reply_queue WHERE id=?", (orig_id,)).fetchone()
+            self.assertEqual(row["status"], "submitted", "submitted status must never be reverted to scheduled")
+            self.assertEqual(row["reply_text"], "original submitted text")
+            self.assertEqual(row["comment_id"], "c_submitted_1")
+
+        # 2. Protect cancelled status
+        hit_id_c = "hit_prot_cancelled_1"
+        with get_db() as db:
+            cur = db.execute(
+                """INSERT INTO reply_queue (hit_id, listener_id, reply_text, status)
+                   VALUES (?, ?, 'cancelled text', 'cancelled')""",
+                (hit_id_c, lid)
+            )
+            c_id = cur.lastrowid
+
+        qid_c = enqueue_reply(
+            hit_id=hit_id_c,
+            listener_id=lid,
+            listener_name="Test Radar",
+            subreddit="golfcarts",
+            post_id="p2",
+            target_id="p2",
+            target_url="https://reddit.com/p2",
+            author="author2",
+            reply_text="re-draft attempt",
+            status="scheduled"
+        )
+        self.assertEqual(qid_c, c_id)
+        with get_db() as db:
+            row_c = db.execute("SELECT status, reply_text FROM reply_queue WHERE id=?", (c_id,)).fetchone()
+            self.assertEqual(row_c["status"], "cancelled", "cancelled status must not be auto-resurrected")
+
+        # 3. Allow updating pending/scheduled items
+        hit_id_s = "hit_prot_scheduled_1"
+        with get_db() as db:
+            cur = db.execute(
+                """INSERT INTO reply_queue (hit_id, listener_id, reply_text, status, scheduled_at)
+                   VALUES (?, ?, 'draft v1', 'scheduled', 1700000000)""",
+                (hit_id_s, lid)
+            )
+            s_id = cur.lastrowid
+
+        qid_s = enqueue_reply(
+            hit_id=hit_id_s,
+            listener_id=lid,
+            listener_name="Test Radar",
+            subreddit="golfcarts",
+            post_id="p3",
+            target_id="p3",
+            target_url="https://reddit.com/p3",
+            author="author3",
+            reply_text="draft v2 refined",
+            status="scheduled"
+        )
+        self.assertEqual(qid_s, s_id)
+        with get_db() as db:
+            row_s = db.execute("SELECT reply_text FROM reply_queue WHERE id=?", (s_id,)).fetchone()
+            self.assertEqual(row_s["reply_text"], "draft v2 refined", "scheduled item can be updated with refined draft")
 
 
 if __name__ == "__main__":

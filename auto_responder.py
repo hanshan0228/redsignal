@@ -335,6 +335,10 @@ def enqueue_reply(
         ).fetchone()
         now_ts = time.time()
         if existing:
+            # If already submitted, visible, or explicitly cancelled, protect state and never re-queue
+            if existing["status"] in ("submitted", "visible", "cancelled"):
+                return existing["id"]
+
             db.execute(
                 """UPDATE reply_queue
                    SET reply_text=?, funnel_tier=?, status=?, scheduled_at=?, platform=?,

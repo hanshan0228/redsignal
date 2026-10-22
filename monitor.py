@@ -170,6 +170,12 @@ def _run_x_listener(listener: dict, credentials: list[dict]) -> None:
     _status(f"[{lname}] 𝕏 (Twitter) 监听引擎启动: {mode_name}，关键词: {', '.join(kws)}")
 
     seen_tweet_ids = set()
+    try:
+        with get_db() as db:
+            rows = db.execute("SELECT hit_id FROM hits WHERE listener_id=? ORDER BY id DESC LIMIT 5000", (lid,)).fetchall()
+            seen_tweet_ids = {r["hit_id"] for r in rows if r["hit_id"]}
+    except Exception:
+        pass
 
     def _emit_tweet(tweet_id: str, author_name: str, tweet_text: str, permalink: str = "", post_ts: float | None = None):
         # Strictly reject invalid/synthetic tweet IDs (must be snowflake digits >= 8 chars)
@@ -183,6 +189,13 @@ def _run_x_listener(listener: dict, credentials: list[dict]) -> None:
         seen_tweet_ids.add(tweet_id)
         if len(seen_tweet_ids) > 10000:
             seen_tweet_ids.pop()
+
+        try:
+            with get_db() as db:
+                if db.execute("SELECT 1 FROM hits WHERE hit_id=? AND listener_id=?", (tweet_id, lid)).fetchone():
+                    return
+        except Exception:
+            pass
 
         m = pattern.search(tweet_text or "")
         if not m:
@@ -701,6 +714,12 @@ def _run_forum_listener(listener: dict, credentials: list[dict]) -> None:
 
     stop = _stop_events.get(lid, threading.Event())
     seen_ids = set()
+    try:
+        with get_db() as db:
+            rows = db.execute("SELECT hit_id FROM hits WHERE listener_id=? ORDER BY id DESC LIMIT 5000", (lid,)).fetchall()
+            seen_ids = {r["hit_id"] for r in rows if r["hit_id"]}
+    except Exception:
+        pass
     _status(f"[{lname}] 垂直技术论坛生态雷达已启动: {rss_url}")
 
     forum_cred = next(
@@ -1119,6 +1138,13 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
         if check_author and not _passes_author_quality(author_obj, min_karma, min_age_days):
             return
 
+        try:
+            with get_db() as db:
+                if db.execute("SELECT 1 FROM hits WHERE hit_id=? AND listener_id=?", (item_id, lid)).fetchone():
+                    return
+        except Exception:
+            pass
+
         actual_ts = post_ts if post_ts is not None and post_ts > 0 else time.time()
 
         # Recency gate for Real-Time Radar: reject posts older than 7 days (or max_post_age_days)
@@ -1400,6 +1426,12 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
     import html as _html
     import re as _re
     seen_ids = set()
+    try:
+        with get_db() as db:
+            rows = db.execute("SELECT hit_id FROM hits WHERE listener_id=? ORDER BY id DESC LIMIT 5000", (lid,)).fetchall()
+            seen_ids = {r["hit_id"] for r in rows if r["hit_id"]}
+    except Exception:
+        pass
     invalid_subs = set()
     subs_list = [s.strip() for s in subreddits_str.replace("+", " ").split() if s.strip()]
     if not subs_list:
@@ -1451,9 +1483,10 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
             chunk = active_subs[i:i + chunk_size]
             batches.append(("+".join(chunk), len(chunk) > 1))
 
+        rss_domain = "old.reddit.com" if reddit_cookie else "www.reddit.com"
         for target_sub, is_multireddit in batches:
             if stop.is_set(): return
-            ep_url = f"https://www.reddit.com/r/{target_sub}/new.rss"
+            ep_url = f"https://{rss_domain}/r/{target_sub}/new.rss"
             try:
                 req = _urllib_req.Request(ep_url, headers=rss_headers)
                 with _urllib_req.urlopen(req, timeout=30) as resp:
@@ -1515,9 +1548,9 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
                     if is_multireddit and ("timed out" in err_msg or "EOF" in err_msg):
                         primary_sub = target_sub.split("+")[0]
                         try:
-                            fallback_url = f"https://www.reddit.com/r/{primary_sub}/new.rss"
+                            fallback_url = f"https://{rss_domain}/r/{primary_sub}/new.rss"
                             fb_req = _urllib_req.Request(fallback_url, headers=rss_headers)
-                            with _urllib_req.urlopen(fb_req, timeout=12) as fb_resp:
+                            with _urllib_req.urlopen(fb_req, timeout=25) as fb_resp:
                                 fb_tree = _ET.fromstring(fb_resp.read().decode("utf-8", errors="ignore"))
                                 for entry in fb_tree.findall("atom:entry", ns):
                                     id_el = entry.find("atom:id", ns)
