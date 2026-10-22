@@ -162,6 +162,70 @@ class TestAiPipeline(unittest.TestCase):
         self.assertFalse(cleaned.endswith('"'))
         self.assertNotIn("!!", cleaned)
 
+    def test_generate_listener_profile_hardening(self):
+        from unittest.mock import patch
+        from ai import generate_listener_profile
+
+        fake_cred = {"type": "mock"}
+        # Case 1: AI returned raw generic/unhardened fields
+        raw_llm_output = (
+            '{\n'
+            '  "name": "TikTok Agency Radar",\n'
+            '  "subreddits": "tiktokads ppc adops dropship",\n'
+            '  "keywords": ["tiktok agency account", "tiktok ad credit", "spend limit", "daily cap"],\n'
+            '  "negative_keywords": ["creator fund", "dance", "meme"],\n'
+            '  "filter_prompt": "Does this content discuss topics directly relevant to TikTok Ads?",\n'
+            '  "pitch_instruction": "Casually introduce our agency accounts with $500 match."\n'
+            '}'
+        )
+        with patch("ai.run_ai_prompt", return_value=raw_llm_output):
+            profile = generate_listener_profile(
+                site_name="Adgrowth-Lab",
+                site_description="Official agency ad accounts with spend match",
+                site_url="https://adgrowth-lab.github.io",
+                platform="reddit",
+                credential=fake_cred
+            )
+            # Must override generic filter_prompt with buyer-intent gatekeeper
+            self.assertIn("Adgrowth-Lab", profile["filter_prompt"])
+            self.assertIn("commercial problem", profile["filter_prompt"])
+            self.assertIn("Reply YES", profile["filter_prompt"])
+            self.assertIn("Reply NO", profile["filter_prompt"])
+
+            # Must harden pitch_instruction with anti-ban directives
+            self.assertIn("salesperson", profile["pitch_instruction"].lower())
+            self.assertIn("dollar", profile["pitch_instruction"].lower())
+            self.assertIn("3rd person", profile["pitch_instruction"].lower())
+
+    def test_extract_metadata_from_url_rich_extraction(self):
+        from unittest.mock import patch, MagicMock
+        from ai import extract_metadata_from_url
+
+        mock_html = """
+        <html>
+        <head>
+            <title>TikTok Offers Hub &middot; Official Ad Credit Registry</title>
+            <meta name="description" content="Official TikTok ad credits matched across 4 verified advertiser tiers.">
+            <meta property="og:site_name" content="Adgrowth Lab">
+        </head>
+        <body>
+            <h1>Agency Accounts with Zero Spend Limits</h1>
+            <h2>Instant Whitelisting and Cashback</h2>
+            <p>Scale paid ads on TikTok without random bans or billing holds.</p>
+        </body>
+        </html>
+        """
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = mock_html
+
+        with patch("curl_cffi.requests.get", return_value=mock_resp):
+            res = extract_metadata_from_url("https://adgrowth-lab.github.io")
+            self.assertEqual(res["brand_name"], "Adgrowth Lab")
+            self.assertIn("Agency Accounts with Zero Spend Limits", res["headings"])
+            self.assertIn("Official TikTok ad credits", res["description"])
+            self.assertIn("Zero Spend Limits", res["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

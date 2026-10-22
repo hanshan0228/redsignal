@@ -861,7 +861,13 @@ class _GenProfileReq(BaseModel):
 
 @router.post("/api/listeners/ai_generate_profile")
 def api_generate_listener_profile(req: _GenProfileReq) -> dict:
-    from ai import generate_listener_profile, generate_offers_matrix_with_ai, resolve_ai_cred
+    from ai import (
+        generate_listener_profile,
+        generate_offers_matrix_with_ai,
+        generate_project_personas,
+        generate_project_visual_assets,
+        resolve_ai_cred
+    )
     cfg = load_config()
     cred = resolve_ai_cred(cfg, req.credential_id)
     if not cred:
@@ -876,6 +882,23 @@ def api_generate_listener_profile(req: _GenProfileReq) -> dict:
         )
         if not data.get("offers_matrix"):
             data["offers_matrix"] = generate_offers_matrix_with_ai(
+                site_name=req.site_name,
+                site_description=req.site_description,
+                site_url=req.site_url,
+                keywords=data.get("keywords", []),
+                credential=cred
+            )
+        if not data.get("personas") or len(data.get("personas", [])) < 2:
+            data["personas"] = generate_project_personas(
+                site_name=req.site_name,
+                site_description=req.site_description,
+                keywords=data.get("keywords", []),
+                pitch_instruction=data.get("pitch_instruction", ""),
+                subreddits=data.get("subreddits", ""),
+                credential=cred
+            )
+        if not data.get("visual_assets") or len(data.get("visual_assets", [])) < 2:
+            data["visual_assets"] = generate_project_visual_assets(
                 site_name=req.site_name,
                 site_description=req.site_description,
                 site_url=req.site_url,

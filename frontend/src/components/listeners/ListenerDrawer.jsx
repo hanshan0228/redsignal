@@ -221,7 +221,7 @@ export default function ListenerDrawer({ listener, onClose }) {
           filters: [
             {
               name: 'AI 意向精准初筛',
-              prompt: d.filter_prompt || `Does this content discuss or ask about topics directly relevant to ${d.site_name}? Reply YES if relevant to engage, NO if irrelevant or spam.`,
+              prompt: d.filter_prompt || `Does this post indicate the author has an active commercial problem, technical roadblock, or purchasing dilemma that ${d.site_name || 'this product'} solves? Reply YES if relevant to engage or solve a problem, NO if generic news, entertainment, job seeking, consumer complaint, or spam.`,
               enabled: true,
             },
           ],
@@ -544,7 +544,7 @@ export default function ListenerDrawer({ listener, onClose }) {
       filters: [
         {
           name: 'AI 意向精准初筛',
-          prompt: aiResult.filter_prompt || `Does this content discuss or ask about topics directly relevant to ${aiForm.site_name}? Reply YES if relevant to engage, NO if irrelevant or spam.`,
+          prompt: aiResult.filter_prompt || `Does this post indicate the author has an active commercial problem, technical roadblock, or purchasing dilemma that ${aiForm.site_name}? Reply YES if relevant to engage or solve a problem, NO if generic news, entertainment, job seeking, consumer complaint, or spam.`,
           enabled: true,
         },
       ],
