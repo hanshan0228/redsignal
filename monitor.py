@@ -1456,7 +1456,7 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
             ep_url = f"https://www.reddit.com/r/{target_sub}/new.rss"
             try:
                 req = _urllib_req.Request(ep_url, headers=rss_headers)
-                with _urllib_req.urlopen(req, timeout=20) as resp:
+                with _urllib_req.urlopen(req, timeout=30) as resp:
                     tree = _ET.fromstring(resp.read().decode("utf-8", errors="ignore"))
                     for entry in tree.findall("atom:entry", ns):
                         id_el = entry.find("atom:id", ns)

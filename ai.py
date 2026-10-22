@@ -16,7 +16,7 @@ def run_ai_prompt(prompt: str, credential: dict, max_tokens: int = 300) -> str:
             return "Check the main wiring harness and verify battery pack voltage across all 6 cells under load. I saved the complete wiring matrix in my profile bio for easy reference."
         return "Step 1: Check your primary circuit voltage. Verify all terminal connections are torqued properly. You can search online for the complete model spec table."
 
-    timeout_sec = float(credential.get("timeout") or 15.0)
+    timeout_sec = float(credential.get("timeout") or 35.0)
 
     if ctype in ("anthropic", "claude"):
         import anthropic  # type: ignore
@@ -54,7 +54,8 @@ def classify_funnel_tier(
     t1_patterns = [
         r"\b(where to buy|where can i (?:buy|get|find)|which should i buy|recommendations?|recommend a|best brand|looking for a|need a tool|how to buy|price check|coupon|discount|deal|quote|cost of|purchase|order|calculator|decoder|lookup|selector|fitment guide|spec sheet|checklist)\b",
         r"\b(ready to buy|who makes the best|top rated|what do you recommend|which tool do you recommend|any good alternatives to buy)\b",
-        r"(求梯子|求\s*vpn|求推荐|求机场|求节点|梯子推荐|vpn\s*推荐|机场推荐|什么梯子好用|哪个vpn好用|求个梯子|有推荐的梯子|稳定翻墙|买什么梯子)"
+        r"\b(agency accounts?|agency ad accounts?|ad credits?|spend match|ad rebate|ad cashback|threshold accounts?|aged accounts?|buy accounts?|promo voucher|account provider|monthly invoicing|credit line|line of credit)\b",
+        r"(求梯子|求\s*vpn|求推荐|求机场|求节点|梯子推荐|vpn\s*推荐|机场推荐|什么梯子好用|哪个vpn好用|求个梯子|有推荐的梯子|稳定翻墙|买什么梯子|求开户|开户推荐|代理户|海外户|广告返点|广告赠金|广告返佣|企业户推荐)"
     ]
     for p in t1_patterns:
         if re.search(p, content):
@@ -62,7 +63,8 @@ def classify_funnel_tier(
 
     # Tier 2: Comparison / Competitor / Alternative / Pain Point
     t2_patterns = [
-        r"\b(vs|versus|\bor\b|alternative|better than|compared to|comparison|overpriced|expensive|broken|shut down|banned|lawsuit|issue with|not working|switch from|migrat|pros and cons|difference between|which is better|worth the money|is it worth)\b"
+        r"\b(vs|versus|\bor\b|alternative|better than|compared to|comparison|overpriced|expensive|broken|shut down|banned|lawsuit|issue with|not working|not applying|switch from|migrat|pros and cons|difference between|which is better|worth the money|is it worth|account disabled|account suspended|billing error|payment failed|spend limit|daily limit|disapproved|suspension|shadowban|shadowbanned)\b",
+        r"(限额|封号|被封|封店|拒登|扣款失败|绑卡失败|无法充值)"
     ]
     for p in t2_patterns:
         if re.search(p, content):
@@ -248,7 +250,11 @@ def format_multichannel_pack(
             re.IGNORECASE
         ))
 
-        if stealth_mode in ("profile_only", "two_step"):
+        site_already_mentioned = bool(site_name and site_name.lower() in clean_text.lower())
+
+        if site_already_mentioned:
+            reddit_asset_block = ""
+        elif stealth_mode in ("profile_only", "two_step"):
             reddit_asset_block = (
                 f"\n\n(Referenced the {clean_cap} specs from the {site_name} database)."
             )
@@ -1547,7 +1553,8 @@ AFFILIATE_INTENT_CLUSTERS = {
             "alternative", "alternatives", "switch from", "switching from", "cancel",
             "replace", "replacement for", "too expensive", "price hike", "pricing change",
             "price increase", "cheaper alternative", "budget alternative", "substitute",
-            "换梯子", "换机场", "换vpn", "替代品", "平替", "太贵了", "涨价", "弃用"
+            "account banned", "account suspended", "spend limit", "daily limit", "banned on tiktok",
+            "换梯子", "换机场", "换vpn", "替代品", "平替", "太贵了", "涨价", "弃用", "限额", "封号", "被封"
         ]
     },
     "compare": {
@@ -1575,8 +1582,12 @@ AFFILIATE_INTENT_CLUSTERS = {
         "keywords": [
             "discount", "promo code", "coupon", "deal", "lifetime deal", "ltd",
             "free trial", "cheapest way to", "promo", "voucher", "affiliate discount",
+            "ad credit", "ad credits", "agency account", "agency accounts", "agency ad account",
+            "spend match", "ad rebate", "cashback", "threshold account", "aged account",
+            "ad spend match", "account provider", "monthly invoicing", "credit line", "line of credit",
             "求梯子", "求vpn", "求推荐梯子", "求推荐vpn", "梯子推荐", "vpn推荐", "机场推荐", "求机场",
-            "优惠码", "折扣码", "优惠券", "便宜梯子", "便宜vpn", "买什么梯子"
+            "优惠码", "折扣码", "优惠券", "便宜梯子", "便宜vpn", "买什么梯子",
+            "返佣", "返点", "赠金", "广告赠金", "代理户", "海外户", "开户", "开企业户"
         ]
     },
     "troubleshoot": {
@@ -1585,7 +1596,8 @@ AFFILIATE_INTENT_CLUSTERS = {
         "keywords": [
             "how to", "troubleshoot", "why is", "won't", "wont", "not working",
             "broken", "error", "failed", "fix", "issue with", "buggy", "frustrated with",
-            "被墙了", "连不上", "断流", "无法访问", "ip被封", "节点超时", "进不去"
+            "billing error", "payment failed", "voucher not applying", "credit not showing", "disapproved",
+            "被墙了", "连不上", "断流", "无法访问", "ip被封", "节点超时", "进不去", "绑卡失败", "充值失败"
         ]
     }
 }
@@ -1651,7 +1663,10 @@ def detect_affiliate_intent(title: str = "", text: str = "", created_at: float |
     if any(sig in content for sig in pricing_signals):
         score += 5
 
-    cjk_high_intent = ["求梯子", "求vpn", "梯子推荐", "vpn推荐", "换梯子", "被墙了", "机场推荐", "求机场"]
+    cjk_high_intent = [
+        "求梯子", "求vpn", "梯子推荐", "vpn推荐", "换梯子", "被墙了", "机场推荐", "求机场",
+        "求开户", "代理户", "开户推荐", "广告返点", "广告赠金", "广告返佣"
+    ]
     if any(sig in content for sig in cjk_high_intent):
         score += 8
 
@@ -1750,7 +1765,9 @@ def calculate_opportunity_score(
         "guide", "diagram", "schematic", "pinout", "wiring",
         "lookup", "decoder", "calculator", "checklist", "spec",
         "buy", "cost", "price", "worth it", "upgrade", "conversion",
-        "law", "legal", "compliance", "inspection", "replacement"
+        "law", "legal", "compliance", "inspection", "replacement",
+        "agency account", "ad credit", "ad credits", "spend match", "rebate",
+        "promo code", "voucher", "account provider", "banned", "spend limit"
     ]
     # Dynamically merge with listener's domain keywords and visual asset triggers
     active_kws = list(universal_intent_kws)

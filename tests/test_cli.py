@@ -146,6 +146,11 @@ class TestRedSignalCli(unittest.TestCase):
         res_alt = detect_affiliate_intent("Looking for a cheaper alternative to Salesforce", "too expensive")
         self.assertEqual(res_alt["intent"], "alternative")
 
+        # Test media buying & agency account intent keywords
+        res_agency = detect_affiliate_intent("Looking for TikTok agency accounts with ad credits", "")
+        self.assertEqual(res_agency["intent"], "deal")
+        self.assertGreaterEqual(res_agency["buying_score"], 80)
+
         # Test Chinese intent keywords
         res_cn_deal = detect_affiliate_intent("最近查得严，大家有求梯子的吗？求个稳定的梯子", "")
         self.assertEqual(res_cn_deal["intent"], "deal")

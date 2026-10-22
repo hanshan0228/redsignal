@@ -132,6 +132,26 @@ def _sync_reddit_rss(limit=25, campaign=""):
                     # Simple HTML strip
                     import re
                     excerpt = re.sub(r"<[^>]+>", " ", content_raw).strip()[:400]
+                    full_text = f"{title} {excerpt}"
+
+                    # Match listener keywords & negative keywords if configured
+                    kws = [k for k in (reddit_lst.get("keywords") or []) if k.strip()]
+                    if kws:
+                        try:
+                            pat = re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(kws) + r")(?![A-Za-z0-9])", re.IGNORECASE)
+                            if not pat.search(full_text):
+                                continue
+                        except Exception:
+                            pass
+
+                    neg_kws = [k for k in (reddit_lst.get("negative_keywords") or []) if k.strip()]
+                    if neg_kws:
+                        try:
+                            neg_pat = re.compile("|".join(neg_kws), re.IGNORECASE)
+                            if neg_pat.search(full_text):
+                                continue
+                        except Exception:
+                            pass
 
                     pub_el = entry.find("atom:published", ns)
                     if pub_el is None:
@@ -175,7 +195,7 @@ def cmd_radar(args):
     campaign = (getattr(args, "campaign", "") or "").strip()
     intent = (getattr(args, "intent", "") or "").strip().lower()
 
-    where_clauses = ["filter_passed=1"]
+    where_clauses = ["(filter_passed=1 OR filter_passed IS NULL)"]
     params = []
 
     if platform != "all":

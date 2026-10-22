@@ -37,12 +37,26 @@ class TestAiPipeline(unittest.TestCase):
         )
         self.assertEqual(t1, 1)
 
+        # Tier 1: Media Buying / Agency Ad Account & Credit Intent
+        t1_agency, _ = classify_funnel_tier(
+            title="Looking for reliable TikTok agency accounts with ad credits",
+            text="Need verified account provider"
+        )
+        self.assertEqual(t1_agency, 1)
+
         # Tier 2: Comparison & Pain point
         t2, _ = classify_funnel_tier(
             title="Comparison: Tool A vs Tool B",
             text="I hate how slow Tool A is, is there an alternative that doesn't break?"
         )
         self.assertEqual(t2, 2)
+
+        # Tier 2: Account ban / spend limit pain point
+        t2_ban, _ = classify_funnel_tier(
+            title="Personal ad account suspended with $50 daily limit",
+            text="Need alternative solution"
+        )
+        self.assertEqual(t2_ban, 2)
 
         # Tier 3: General Question
         t3, _ = classify_funnel_tier(

@@ -88,10 +88,13 @@ async def webhook_retry_loop() -> None:
             for r in rows:
                 attempt = r["attempts"] + 1
                 try:
-                    resp = _http.post(r["url"],
-                                      data=r["payload"],
-                                      headers={"Content-Type": "application/json"},
-                                      timeout=10)
+                    resp = await asyncio.to_thread(
+                        _http.post,
+                        r["url"],
+                        data=r["payload"],
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
                     resp.raise_for_status()
                     with get_db() as db:
                         db.execute(
