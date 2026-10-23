@@ -62,6 +62,16 @@ export default function ListenerDrawer({ listener, onClose }) {
     keywords: '',
   });
 
+  // Accordion state to eliminate crowding & clutter
+  const [collapsedSections, setCollapsedSections] = useState({
+    personas: true,
+    assets: true,
+    offers: true,
+    regex: false,
+    notifications: true,
+  });
+  const toggleSection = (key) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
   const handleGenerateOffersMatrix = async () => {
     if (!lst.site_name && !lst.site_description) {
       alert('请先填写站点名称与功能简介，以便 AI 准确规划高转化落地工具');
@@ -218,6 +228,10 @@ export default function ListenerDrawer({ listener, onClose }) {
           keywords: Array.isArray(d.keywords) && d.keywords.length ? d.keywords : lst.keywords,
           negative_keywords: Array.isArray(d.negative_keywords) && d.negative_keywords.length ? d.negative_keywords : lst.negative_keywords,
           pitch_instruction: d.pitch_instruction || lst.pitch_instruction,
+          stealth_mode: d.stealth_mode || (lst.platform === 'x' ? 'profile_only' : 'brand_search'),
+          anti_ban_mode: d.anti_ban_mode || (lst.platform === 'x' ? 'brand_search' : 'adaptive'),
+          reply_cooldown_minutes: d.reply_cooldown_minutes || (lst.platform === 'x' ? 45 : 30),
+          daily_reply_limit: d.daily_reply_limit || (lst.platform === 'x' ? 6 : 12),
           filters: [
             {
               name: 'AI 意向精准初筛',
@@ -490,6 +504,73 @@ export default function ListenerDrawer({ listener, onClose }) {
   const isForum = (lst.platform === 'forum' || lst.platform === 'vbulletin' || lst.platform === 'phpbb' || lst.platform === 'xenforo');
   const isReddit = !isX && !isForum;
 
+  const handleSelectPlatform = (plat) => {
+    let next = { ...lst, platform: plat };
+    if (plat === 'x') {
+      next.reply_cooldown_minutes = lst.reply_cooldown_minutes || 45;
+      next.daily_reply_limit = lst.daily_reply_limit || 6;
+      next.stealth_mode = lst.stealth_mode || 'profile_only';
+      next.anti_ban_mode = lst.anti_ban_mode || 'brand_search';
+    } else if (plat === 'forum') {
+      next.forum_rss_url = lst.forum_rss_url || 'https://www.buggiesgonewild.com/external.php?type=RSS2';
+      next.reply_cooldown_minutes = lst.reply_cooldown_minutes || 30;
+      next.daily_reply_limit = lst.daily_reply_limit || 10;
+      next.stealth_mode = lst.stealth_mode || 'profile_only';
+      next.anti_ban_mode = lst.anti_ban_mode || 'brand_search';
+    } else {
+      next.reply_cooldown_minutes = lst.reply_cooldown_minutes || 30;
+      next.daily_reply_limit = lst.daily_reply_limit || 10;
+      next.stealth_mode = lst.stealth_mode || 'brand_search';
+      next.anti_ban_mode = lst.anti_ban_mode || 'adaptive';
+    }
+    setLst(next);
+    persist(next);
+  };
+
+  const getFrequencyPresets = () => {
+    if (isX) {
+      return [
+        { id: 'safe', label: '🛡️ 安全低频', cd: 60, limit: 4, tag: '极低风险', desc: '间隔 60m · 每日 4条 (新号冷启动)' },
+        { id: 'balanced', label: '⚖️ 稳健推荐', cd: 45, limit: 6, tag: '推荐标杆', desc: '间隔 45m · 每日 6条 (标准商业雷达)' },
+        { id: 'active', label: '🚀 活跃冲刺', cd: 30, limit: 10, tag: '适度加速', desc: '间隔 30m · 每日 10条 (蓝V认证号)' },
+      ];
+    }
+    if (isForum) {
+      return [
+        { id: 'safe', label: '🛡️ 稳妥养号', cd: 45, limit: 5, tag: '低频', desc: '间隔 45m · 每日 5条' },
+        { id: 'balanced', label: '⚖️ 行业专家', cd: 30, limit: 10, tag: '推荐', desc: '间隔 30m · 每日 10条' },
+        { id: 'active', label: '🚀 密集讨论', cd: 20, limit: 15, tag: '高效', desc: '间隔 20m · 每日 15条' },
+      ];
+    }
+    return [
+      { id: 'safe', label: '🛡️ 安全防删', cd: 45, limit: 6, tag: '低Karma推荐', desc: '间隔 45m · 每日 6条 (Karma < 100 账号)' },
+      { id: 'balanced', label: '⚖️ 稳健自然', cd: 30, limit: 10, tag: '标准推荐', desc: '间隔 30m · 每日 10条 (自然真实互动)' },
+      { id: 'active', label: '🚀 垂类高频', cd: 20, limit: 15, tag: '老号适用', desc: '间隔 20m · 每日 15条 (高活跃垂类)' },
+    ];
+  };
+
+  const stepCooldown = (delta) => {
+    const cur = lst.reply_cooldown_minutes ?? (isX ? 45 : 30);
+    const nextVal = Math.max(5, Math.min(240, cur + delta));
+    update('reply_cooldown_minutes', nextVal);
+  };
+
+  const stepLimit = (delta) => {
+    const cur = lst.daily_reply_limit ?? (isX ? 6 : 10);
+    const nextVal = Math.max(1, Math.min(50, cur + delta));
+    update('daily_reply_limit', nextVal);
+  };
+
+  const applyPreset = (preset) => {
+    const next = {
+      ...lst,
+      reply_cooldown_minutes: preset.cd,
+      daily_reply_limit: preset.limit,
+    };
+    setLst(next);
+    persist(next);
+  };
+
   const openAiModal = () => {
     setAiForm({
       site_name: lst.site_name || '',
@@ -541,6 +622,10 @@ export default function ListenerDrawer({ listener, onClose }) {
       keywords: Array.isArray(aiResult.keywords) && aiResult.keywords.length ? aiResult.keywords : lst.keywords,
       negative_keywords: Array.isArray(aiResult.negative_keywords) && aiResult.negative_keywords.length ? aiResult.negative_keywords : lst.negative_keywords,
       pitch_instruction: aiResult.pitch_instruction || lst.pitch_instruction,
+      stealth_mode: aiResult.stealth_mode || (lst.platform === 'x' ? 'profile_only' : 'brand_search'),
+      anti_ban_mode: aiResult.anti_ban_mode || (lst.platform === 'x' ? 'brand_search' : 'adaptive'),
+      reply_cooldown_minutes: aiResult.reply_cooldown_minutes || (lst.platform === 'x' ? 45 : 30),
+      daily_reply_limit: aiResult.daily_reply_limit || (lst.platform === 'x' ? 6 : 12),
       filters: [
         {
           name: 'AI 意向精准初筛',
@@ -640,6 +725,11 @@ export default function ListenerDrawer({ listener, onClose }) {
     }
   };
 
+  const currentCd = lst.reply_cooldown_minutes ?? (isX ? 45 : 30);
+  const currentLimit = lst.daily_reply_limit ?? (isX ? 6 : 10);
+  const presets = getFrequencyPresets();
+  const matchedPreset = presets.find(p => p.cd === currentCd && p.limit === currentLimit);
+
   const S = ({ children }) => <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{children}</div>;
 
   return (
@@ -654,15 +744,6 @@ export default function ListenerDrawer({ listener, onClose }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={openAiModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-all hover:shadow"
-              title="输入新产品/独立站信息，由 AI 自动生成全套监听器规则"
-            >
-              <span>🪄</span>
-              <span>AI 一键冷启动新项目</span>
-            </button>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors text-xl leading-none">×</button>
           </div>
         </div>
@@ -670,11 +751,11 @@ export default function ListenerDrawer({ listener, onClose }) {
         <div className="flex-1 overflow-y-auto p-6 space-y-7">
 
           {/* Quick AI Profile Generator & 1-Click URL Ingestion */}
-          <div className="bg-gradient-to-br from-violet-600 to-indigo-700 rounded-2xl p-4 text-white shadow-md space-y-3">
+          <div className="bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-700 rounded-2xl p-4 text-white shadow-md space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-base">🚀</span>
-                <span className="text-xs font-bold tracking-wide uppercase">AI 零门槛一键建仓 (Zero-Touch Ingestion)</span>
+                <span className="text-xs font-bold tracking-wide uppercase">AI 一键极速建仓 (Zero-Touch Ingestion)</span>
               </div>
               <button
                 type="button"
@@ -685,12 +766,12 @@ export default function ListenerDrawer({ listener, onClose }) {
               </button>
             </div>
             <p className="text-[11px] text-violet-100/90 leading-relaxed">
-              输入独立站或产品官网链接，AI 自动抓取分析并推演推荐版块、高意向词、反向词、4维立众人设与3大专业图谱资产！
+              输入独立站或产品官网链接，AI 自动抓取并推演精准风控策略、人设矩阵与落地工具！
             </p>
             <div className="flex items-center gap-2 pt-0.5">
               <input
                 className="flex-1 px-3 py-2 text-xs bg-white text-slate-800 placeholder-slate-400 rounded-xl outline-none focus:ring-2 focus:ring-violet-300 shadow-inner"
-                placeholder="粘贴你的独立站/产品链接, 例如 https://espressomod.com"
+                placeholder={isX ? "粘贴产品链接, 如 https://adgrowth-lab.github.io" : "粘贴独立站链接, 例如 https://espressomod.com"}
                 value={ingestUrlInput}
                 onChange={e => setIngestUrlInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleIngestUrl(); }}
@@ -713,14 +794,10 @@ export default function ListenerDrawer({ listener, onClose }) {
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  update('platform', 'reddit');
-                  if (!lst.reply_cooldown_minutes) update('reply_cooldown_minutes', 45);
-                  if (!lst.daily_reply_limit) update('daily_reply_limit', 8);
-                }}
+                onClick={() => handleSelectPlatform('reddit')}
                 className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
                   isReddit
-                    ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-sm'
+                    ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
@@ -729,14 +806,10 @@ export default function ListenerDrawer({ listener, onClose }) {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  update('platform', 'x');
-                  if (!lst.reply_cooldown_minutes || lst.reply_cooldown_minutes === 45) update('reply_cooldown_minutes', 15);
-                  if (!lst.daily_reply_limit || lst.daily_reply_limit === 8) update('daily_reply_limit', 25);
-                }}
+                onClick={() => handleSelectPlatform('x')}
                 className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
                   isX
-                    ? 'border-black bg-black text-white shadow-sm'
+                    ? 'border-black bg-black text-white shadow-xs'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
@@ -747,16 +820,10 @@ export default function ListenerDrawer({ listener, onClose }) {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  update('platform', 'forum');
-                  if (!lst.forum_rss_url) update('forum_rss_url', 'https://www.buggiesgonewild.com/external.php?type=RSS2');
-                  if (!lst.stealth_mode) update('stealth_mode', 'profile_only');
-                  if (!lst.reply_cooldown_minutes) update('reply_cooldown_minutes', 30);
-                  if (!lst.daily_reply_limit) update('daily_reply_limit', 10);
-                }}
+                onClick={() => handleSelectPlatform('forum')}
                 className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
                   isForum
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-sm'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
@@ -1066,11 +1133,11 @@ export default function ListenerDrawer({ listener, onClose }) {
                 <div className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                        <span>🤖 全自动无人值守安全回复 (Auto-Submitter)</span>
+                      <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <span>🤖 全自动无人值守安全回复与频率节流 (Auto-Submitter & Pacing)</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        开启后，AI 生成回复后将自动加入风控排期队列，严格遵循频率节流防封提交。
+                      <div className="text-[11px] text-amber-800/80 mt-0.5">
+                        开启后，AI 回复将自动加入排期队列，严格遵循防封频率阶梯平滑发射。
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
@@ -1086,31 +1153,286 @@ export default function ListenerDrawer({ listener, onClose }) {
                   </div>
 
                   {lst.auto_submit_enabled && (
-                    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-amber-100">
-                      <label className="block">
-                        <span className="text-xs font-medium text-slate-700">两次发帖最小间隔 (分钟)</span>
-                        <input
-                          type="number"
-                          min="5"
-                          max="240"
-                          className="inp mt-1 text-xs bg-white"
-                          value={lst.reply_cooldown_minutes ?? (isX ? 15 : 45)}
-                          onChange={e => update('reply_cooldown_minutes', parseInt(e.target.value) || (isX ? 15 : 45))}
-                        />
-                        <span className="text-[10px] text-slate-400">建议 ≥{isX ? '15' : '45'} 分钟，降低被系统盯上的概率</span>
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-medium text-slate-700">单日单号回复上限 (条)</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          className="inp mt-1 text-xs bg-white"
-                          value={lst.daily_reply_limit ?? (isX ? 25 : 8)}
-                          onChange={e => update('daily_reply_limit', parseInt(e.target.value) || (isX ? 25 : 8))}
-                        />
-                        <span className="text-[10px] text-slate-400">建议每日 ≤{isX ? '25' : '8'} 条，安全防封</span>
-                      </label>
+                    <div className="space-y-4 pt-2 border-t border-amber-200/80">
+                      {/* 1. Quick Frequency Preset Pills */}
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                          <span>⚡ 一键安全频率预设 (Platform Safety Presets)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">点击快速切换防封档位</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {presets.map(p => {
+                            const active = matchedPreset?.id === p.id;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => applyPreset(p)}
+                                className={`p-2.5 rounded-xl border text-left transition-all ${
+                                  active
+                                    ? 'border-amber-600 bg-white shadow-xs ring-2 ring-amber-400/40'
+                                    : 'border-amber-200/60 bg-white/70 hover:bg-white text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-900">{p.label}</span>
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 font-semibold">{p.tag}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 mt-1 leading-tight font-mono">
+                                  {p.cd}m · {p.limit}条/天
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2. Interactive Stepper & Quick Pills */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white/90 p-3 rounded-xl border border-amber-200/70">
+                        {/* Cooldown Stepper */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-700">两次发帖最小间隔</span>
+                            <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                              {currentCd} 分钟
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => stepCooldown(-5)}
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center transition-colors"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="5"
+                              max="240"
+                              className="inp text-center text-xs font-mono font-bold py-1.5 bg-white flex-1"
+                              value={currentCd}
+                              onChange={e => update('reply_cooldown_minutes', parseInt(e.target.value) || (isX ? 45 : 30))}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => stepCooldown(5)}
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {/* Quick Pills */}
+                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                            {[15, 30, 45, 60, 90].map(m => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => update('reply_cooldown_minutes', m)}
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                                  currentCd === m
+                                    ? 'bg-amber-600 text-white border-amber-600 font-bold'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400'
+                                }`}
+                              >
+                                {m}m
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Daily Limit Stepper */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-700">单日回复上限</span>
+                            <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                              {currentLimit} 条/天
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => stepLimit(-1)}
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center transition-colors"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              max="50"
+                              className="inp text-center text-xs font-mono font-bold py-1.5 bg-white flex-1"
+                              value={currentLimit}
+                              onChange={e => update('daily_reply_limit', parseInt(e.target.value) || (isX ? 6 : 10))}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => stepLimit(1)}
+                              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {/* Quick Pills */}
+                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                            {[4, 6, 8, 10, 15, 20].map(cnt => (
+                              <button
+                                key={cnt}
+                                type="button"
+                                onClick={() => update('daily_reply_limit', cnt)}
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                                  currentLimit === cnt
+                                    ? 'bg-amber-600 text-white border-amber-600 font-bold'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400'
+                                }`}
+                              >
+                                {cnt}条
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. Real-Time Risk / Pacing Indicator */}
+                      <div className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                        isX && (currentCd < 30 || currentLimit > 12)
+                          ? 'bg-rose-50 border-rose-200 text-rose-800'
+                          : (!isX && (currentCd < 20 || currentLimit > 15))
+                          ? 'bg-amber-100 border-amber-300 text-amber-900'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      }`}>
+                        <span className="text-base leading-none">
+                          {isX && (currentCd < 30 || currentLimit > 12) ? '⚠️' : (!isX && (currentCd < 20 || currentLimit > 15)) ? '⚡' : '🛡️'}
+                        </span>
+                        <div className="space-y-0.5 leading-snug">
+                          <div className="font-semibold text-[11px]">
+                            {isX && (currentCd < 30 || currentLimit > 12)
+                              ? '频率过高风控警示'
+                              : (!isX && (currentCd < 20 || currentLimit > 15))
+                              ? '高频互动模式'
+                              : '防封评级：极高安全度 (Safe)'}
+                          </div>
+                          <div className="text-[10px] opacity-90">
+                            {isX && (currentCd < 30 || currentLimit > 12)
+                              ? '𝕏 平台发帖间隔低于 30m 或每日 >12 条极易被算法识别为 Bot 触发 Shadowban，强烈建议调至 ≥45m 稳健档位。'
+                              : (!isX && (currentCd < 20 || currentLimit > 15))
+                              ? '当前频率偏高，适合老号或高权重账号，新号建议开启安全养号档位。'
+                              : `全天预计每 ${Math.round(24 / currentLimit * 10) / 10} 小时分配 1 次互动，每次提交后强制锁冷 ${currentCd} 分钟，模拟真实真人作息。`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. Schedule Window inside Timing Panel */}
+                      <div className="bg-white/80 border border-amber-200/80 rounded-xl p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                              <span>🕒 运行时间窗口与活跃时段 (Active Schedule Window)</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              限制机器人仅在目标用户活跃的白天或工作时间发帖，深夜休眠更拟真。
+                            </div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={!!lst.schedule_enabled}
+                              className="sr-only peer"
+                              onChange={e => update('schedule_enabled', e.target.checked)}
+                            />
+                            <div className="w-8 h-4.5 bg-slate-200 rounded-full peer peer-checked:bg-blue-600 transition-colors" />
+                            <div className="absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-3.5" />
+                          </label>
+                        </div>
+
+                        {lst.schedule_enabled && (
+                          <div className="space-y-3 pt-1 border-t border-slate-100 text-xs">
+                            {/* Timezone with Quick Pills */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium text-slate-700">时区设置 (Timezone)</span>
+                                <span className="text-[10px] font-mono text-slate-400">{lst.schedule_timezone || 'UTC'}</span>
+                              </div>
+                              <div className="flex gap-1.5 flex-wrap mb-1.5">
+                                {[
+                                  ['America/New_York', '美东 EDT'],
+                                  ['America/Los_Angeles', '美西 PDT'],
+                                  ['Europe/London', '欧洲 CET'],
+                                  ['Asia/Shanghai', '北京 CST'],
+                                  ['UTC', 'UTC'],
+                                ].map(([tz, label]) => (
+                                  <button
+                                    key={tz}
+                                    type="button"
+                                    onClick={() => update('schedule_timezone', tz)}
+                                    className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                      (lst.schedule_timezone || 'UTC') === tz
+                                        ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                              <input
+                                className="inp text-xs font-mono bg-white"
+                                value={lst.schedule_timezone || 'UTC'}
+                                placeholder="例如: America/New_York"
+                                onChange={e => update('schedule_timezone', e.target.value)}
+                              />
+                            </div>
+
+                            {/* Active Days */}
+                            <div>
+                              <span className="font-medium text-slate-700 block mb-1">活跃日期 (Active Days)</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {DAYS.map(([label, n]) => {
+                                  const days = Array.isArray(lst.schedule_days) ? lst.schedule_days : [0, 1, 2, 3, 4, 5, 6];
+                                  const on = days.includes(n);
+                                  return (
+                                    <button
+                                      key={n}
+                                      type="button"
+                                      onClick={() => toggleDay(n)}
+                                      className={`text-[10px] px-2.5 py-1 rounded-lg border font-medium transition-all ${
+                                        on ? 'bg-slate-900 text-white border-slate-900 font-bold' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Active Hours */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <label className="block">
+                                <span className="text-[11px] font-medium text-slate-600">每日开始时间 (小时 0-23)</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="23"
+                                  className="inp mt-1 text-xs bg-white"
+                                  value={lst.schedule_start ?? 8}
+                                  onChange={e => update('schedule_start', +e.target.value)}
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-[11px] font-medium text-slate-600">每日结束时间 (小时 1-24)</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="24"
+                                  className="inp mt-1 text-xs bg-white"
+                                  value={lst.schedule_end ?? 22}
+                                  onChange={e => update('schedule_end', +e.target.value)}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1170,26 +1492,31 @@ export default function ListenerDrawer({ listener, onClose }) {
 
                 {/* Domain Metapersona / 赛道专属 AI 人设矩阵 */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                        <span>🎭 赛道专属 AI 人设矩阵 (Domain Metapersonas)</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-                          {(lst.personas || []).length} 个专家人设
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        针对任何新赛道（咖啡机、SaaS、露营、独立站等）一键推演 3~4 个立体社区专家角色，AI 回复根据帖子技术痛点智能自适应路由。
+                  <div className="flex items-center justify-between flex-wrap gap-2 cursor-pointer select-none" onClick={() => toggleSection('personas')}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-mono">
+                        {collapsedSections.personas ? '▶' : '▼'}
+                      </span>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                          <span>🎭 赛道专属 AI 人设矩阵 (Domain Metapersonas)</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                            {(lst.personas || []).length} 个专家人设
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          针对任何新赛道（咖啡机、SaaS、露营、独立站等）一键推演立体专家角色，AI 回复根据技术痛点智能自适应路由。
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={handleLoadDefaultGolfPersonas}
                         className="px-2 py-1 text-[11px] font-medium text-slate-600 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
                         title="恢复 4 大高尔夫球车经典人设预设"
                       >
-                        ↺ 恢复经典人设
+                        ↺ 经典预设
                       </button>
                       <button
                         type="button"
@@ -1199,113 +1526,119 @@ export default function ListenerDrawer({ listener, onClose }) {
                         title="根据上方产品名称与功能简介一键智能推演"
                       >
                         {generatingPersonas ? <span className="spin">⏳</span> : '✨'}
-                        <span>{generatingPersonas ? 'AI 正在推演人设...' : '一键 AI 推演 4 大人设'}</span>
+                        <span>{generatingPersonas ? '推演中...' : 'AI 推演人设'}</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleOpenAddPersona}
-                        className="px-2.5 py-1 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        className="px-2 py-1 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        <span>+</span> 添加人设
+                        <span>+</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Personas List */}
-                  <div className="space-y-2 pt-1">
-                    {(!lst.personas || lst.personas.length === 0) ? (
-                      <div className="text-center py-5 bg-white border border-dashed border-slate-200 rounded-xl space-y-2">
-                        <div className="text-2xl">🎭</div>
-                        <div className="text-xs text-slate-600 font-medium">当前未配置赛道专属人设</div>
-                        <div className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                          换新项目时，只需在上方填写产品名称与简介，点击「一键 AI 推演 4 大人设」，大模型将自动生成立体的技术专家、发烧友与评测顾问角色！
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleAiGeneratePersonas}
-                          disabled={generatingPersonas}
-                          className="mt-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors inline-flex items-center gap-1"
-                        >
-                          ✨ 为当前项目一键生成专属人设
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                        {lst.personas.map((persona, idx) => (
-                          <div key={persona.key || idx} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3 space-y-2 transition-all">
-                            <div className="flex items-start justify-between gap-1">
-                              <div>
-                                <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                                  <span>{persona.label}</span>
-                                  <span className="text-[10px] font-mono font-normal text-slate-400">({persona.key})</span>
-                                </div>
-                                <div className="text-[11px] font-medium text-indigo-600 mt-0.5 line-clamp-1">
-                                  {persona.name}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditPersona(idx)}
-                                  className="px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100 rounded border border-slate-200"
-                                >
-                                  编辑
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeletePersona(idx)}
-                                  className="px-1.5 py-0.5 text-[10px] text-rose-600 hover:bg-rose-50 rounded border border-rose-200"
-                                >
-                                  删除
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="text-[11px] text-slate-600 leading-relaxed bg-slate-50 p-2 rounded-lg line-clamp-2">
-                              {persona.tone}
-                            </div>
-
-                            {persona.match_keywords && persona.match_keywords.length > 0 && (
-                              <div className="flex flex-wrap gap-1 pt-1">
-                                {persona.match_keywords.slice(0, 6).map((kw, kidx) => (
-                                  <span key={kidx} className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                    {kw}
-                                  </span>
-                                ))}
-                                {persona.match_keywords.length > 6 && (
-                                  <span className="text-[10px] text-slate-400 px-1">
-                                    +{persona.match_keywords.length - 6}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                  {!collapsedSections.personas && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200/70">
+                      {(!lst.personas || lst.personas.length === 0) ? (
+                        <div className="text-center py-5 bg-white border border-dashed border-slate-200 rounded-xl space-y-2">
+                          <div className="text-2xl">🎭</div>
+                          <div className="text-xs text-slate-600 font-medium">当前未配置赛道专属人设</div>
+                          <div className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                            换新项目时，只需在上方填写产品名称与简介，点击「一键 AI 推演 4 大人设」，大模型将自动生成立体的技术专家、发烧友与评测顾问角色！
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <button
+                            type="button"
+                            onClick={handleAiGeneratePersonas}
+                            disabled={generatingPersonas}
+                            className="mt-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors inline-flex items-center gap-1"
+                          >
+                            ✨ 为当前项目一键生成专属人设
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          {lst.personas.map((persona, idx) => (
+                            <div key={persona.key || idx} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3 space-y-2 transition-all">
+                              <div className="flex items-start justify-between gap-1">
+                                <div>
+                                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                    <span>{persona.label}</span>
+                                    <span className="text-[10px] font-mono font-normal text-slate-400">({persona.key})</span>
+                                  </div>
+                                  <div className="text-[11px] font-medium text-indigo-600 mt-0.5 line-clamp-1">
+                                    {persona.name}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditPersona(idx)}
+                                    className="px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100 rounded border border-slate-200"
+                                  >
+                                    编辑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePersona(idx)}
+                                    className="px-1.5 py-0.5 text-[10px] text-rose-600 hover:bg-rose-50 rounded border border-rose-200"
+                                  >
+                                    删除
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="text-[11px] text-slate-600 leading-relaxed bg-slate-50 p-2 rounded-lg line-clamp-2">
+                                {persona.tone}
+                              </div>
+
+                              {persona.match_keywords && persona.match_keywords.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {persona.match_keywords.slice(0, 6).map((kw, kidx) => (
+                                    <span key={kidx} className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                      {kw}
+                                    </span>
+                                  ))}
+                                  {persona.match_keywords.length > 6 && (
+                                    <span className="text-[10px] text-slate-400 px-1">
+                                      +{persona.match_keywords.length - 6}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Visual Asset Library / 视觉图表与外链资产库 */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                        <span>🖼️ 视觉资产与图表引流库 (Visual Asset Library)</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                          {(lst.visual_assets || []).length} 个资产
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        为论坛输出 BBCode 图片包裹外链([URL][IMG][/URL])，并为 Reddit 提供图文长评与 OP 首评学术引用。
+                  <div className="flex items-center justify-between flex-wrap gap-2 cursor-pointer select-none" onClick={() => toggleSection('assets')}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-mono">
+                        {collapsedSections.assets ? '▶' : '▼'}
+                      </span>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                          <span>🖼️ 视觉资产与图表引流库 (Visual Asset Library)</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                            {(lst.visual_assets || []).length} 个资产
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          为论坛输出 BBCode 图片包裹外链([URL][IMG][/URL])，并为 Reddit 提供图文长评与学术引用。
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={handleGenerateVisualAssets}
                         disabled={generatingAssets}
-                        className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors flex items-center gap-1 disabled:opacity-50"
+                        className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-lg border border-emerald-300 transition-colors flex items-center gap-1 disabled:opacity-50"
                         title="根据站点名称与功能简介，由 AI 自动推演专业技术图表资产"
                       >
                         {generatingAssets ? (
@@ -1315,7 +1648,7 @@ export default function ListenerDrawer({ listener, onClose }) {
                           </>
                         ) : (
                           <>
-                            <span>🪄 AI 一键规划资产</span>
+                            <span>🪄 AI 规划资产</span>
                           </>
                         )}
                       </button>
@@ -1325,141 +1658,139 @@ export default function ListenerDrawer({ listener, onClose }) {
                         className="px-2 py-1 text-[11px] font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
                         title="载入高尔夫球车 7 大技术图表资产预设"
                       >
-                        ✨ 载入球车预设
+                        ✨ 球车预设
                       </button>
                       <button
                         type="button"
                         onClick={handleOpenAddAsset}
-                        className="px-2.5 py-1 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                        className="px-2 py-1 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
                       >
-                        <span>+</span> 添加图表
+                        <span>+</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Asset List */}
-                  <div className="space-y-2 pt-1">
-                    {(!lst.visual_assets || lst.visual_assets.length === 0) ? (
-                      <div className="text-center py-5 bg-white border border-dashed border-slate-200 rounded-lg px-4">
-                        <div className="text-xs text-slate-500 font-medium">暂无图表资产。配置后 AI 将在 Reddit/论坛生成回复时智能匹配并学术引用插入图片！</div>
-                        <div className="mt-3 flex items-center justify-center gap-3">
-                          <button
-                            type="button"
-                            onClick={handleGenerateVisualAssets}
-                            disabled={generatingAssets}
-                            className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-xs flex items-center gap-1"
-                          >
-                            <span>🪄</span> {generatingAssets ? '正在推演规划中...' : `为 ${lst.site_name || '当前项目'} 一键推演技术图表`}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleLoadDefaultAssets}
-                            className="text-xs text-slate-400 hover:text-indigo-600 underline"
-                          >
-                            或加载球车 7 大预设
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      lst.visual_assets.map((asset, idx) => (
-                        <div
-                          key={asset.id || idx}
-                          className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-start gap-3 hover:border-slate-300 transition-all shadow-xs"
-                        >
-                          {/* Image preview / icon */}
-                          <div className="w-14 h-14 rounded-md border border-slate-100 bg-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center relative group">
-                            {asset.image_url ? (
-                              <img
-                                src={asset.image_url}
-                                alt={asset.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }}
-                              />
-                            ) : null}
-                            <div className="w-full h-full hidden items-center justify-center text-xs text-slate-400 bg-slate-50 font-mono">
-                              📊
-                            </div>
+                  {!collapsedSections.assets && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200/70">
+                      {(!lst.visual_assets || lst.visual_assets.length === 0) ? (
+                        <div className="text-center py-5 bg-white border border-dashed border-slate-200 rounded-lg px-4">
+                          <div className="text-xs text-slate-500 font-medium">暂无图表资产。配置后 AI 将在 Reddit/论坛生成回复时智能匹配并学术引用插入图片！</div>
+                          <div className="mt-3 flex items-center justify-center gap-3">
+                            <button
+                              type="button"
+                              onClick={handleGenerateVisualAssets}
+                              disabled={generatingAssets}
+                              className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-xs flex items-center gap-1"
+                            >
+                              <span>🪄</span> {generatingAssets ? '正在推演规划中...' : `为 ${lst.site_name || '当前项目'} 一键推演技术图表`}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleLoadDefaultAssets}
+                              className="text-xs text-slate-400 hover:text-indigo-600 underline"
+                            >
+                              或加载球车 7 大预设
+                            </button>
                           </div>
+                        </div>
+                      ) : (
+                        lst.visual_assets.map((asset, idx) => (
+                          <div
+                            key={asset.id || idx}
+                            className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-start gap-3 hover:border-slate-300 transition-all shadow-xs"
+                          >
+                            {/* Image preview / icon */}
+                            <div className="w-14 h-14 rounded-md border border-slate-100 bg-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center relative group">
+                              {asset.image_url ? (
+                                <img
+                                  src={asset.image_url}
+                                  alt={asset.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex'; }}
+                                />
+                              ) : null}
+                              <div className="w-full h-full hidden items-center justify-center text-xs text-slate-400 bg-slate-50 font-mono">
+                                📊
+                              </div>
+                            </div>
 
-                          {/* Content */}
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-xs font-semibold text-slate-800 truncate">{asset.name}</h4>
-                              <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditAsset(idx)}
-                                  className="text-[11px] text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded hover:bg-slate-100"
-                                >
-                                  编辑
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteAsset(idx)}
-                                  className="text-[11px] text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50"
-                                >
-                                  删除
-                                </button>
-                              </div>
-                            </div>
-                            <div className="text-[11px] text-slate-600 line-clamp-1">
-                              {asset.caption || asset.name}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-                              <span className="font-semibold text-slate-500">权威出处:</span>
-                              <span className="truncate">{asset.citation_source || `${lst.site_name || '权威数据源'} Dataset`}</span>
-                            </div>
-                            {/* Intent tags */}
-                            {asset.intent_keywords && (
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {(Array.isArray(asset.intent_keywords)
-                                  ? asset.intent_keywords
-                                  : String(asset.intent_keywords).split(',')
-                                ).slice(0, 5).map((kw, ki) => (
-                                  <span
-                                    key={ki}
-                                    className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono"
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold text-slate-800 truncate">{asset.name}</h4>
+                                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditAsset(idx)}
+                                    className="text-[11px] text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded hover:bg-slate-100"
                                   >
-                                    #{kw.trim()}
-                                  </span>
-                                ))}
-                                {((Array.isArray(asset.intent_keywords) ? asset.intent_keywords.length : 0) > 5) && (
-                                  <span className="text-[9px] text-slate-400">
-                                    +{asset.intent_keywords.length - 5}
-                                  </span>
-                                )}
+                                    编辑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAsset(idx)}
+                                    className="text-[11px] text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50"
+                                  >
+                                    删除
+                                  </button>
+                                </div>
                               </div>
-                            )}
+                              <div className="text-[11px] text-slate-600 line-clamp-1">
+                                {asset.caption || asset.name}
+                              </div>
+                              <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                                <span className="font-semibold text-slate-500">权威出处:</span>
+                                <span className="truncate">{asset.citation_source || `${lst.site_name || '权威数据源'} Dataset`}</span>
+                              </div>
+                              {/* Intent tags */}
+                              {asset.intent_keywords && (
+                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                  {(Array.isArray(asset.intent_keywords)
+                                    ? asset.intent_keywords
+                                    : String(asset.intent_keywords).split(',')
+                                  ).slice(0, 5).map((kw, ki) => (
+                                    <span
+                                      key={ki}
+                                      className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono"
+                                    >
+                                      #{kw.trim()}
+                                    </span>
+                                  ))}
+                                  {((Array.isArray(asset.intent_keywords) ? asset.intent_keywords.length : 0) > 5) && (
+                                    <span className="text-[9px] text-slate-400">
+                                      +{asset.intent_keywords.length - 5}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Offers & Dynamic Tools Matrix / 动态工具与转化 Offer 矩阵 */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                        <span>🎯 落地工具与 Offer 矩阵 (Offers & Dynamic Tools Matrix)</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                          {(lst.offers_matrix || []).length} 个转化工具
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        社媒 1v1 私信聊单与三轮心智流时，根据线索痛点关键词自适应匹配最精准的子工具/Offer 落地页（而非首页），提升 3 倍转化率。
+                  <div className="flex items-center justify-between flex-wrap gap-2 cursor-pointer select-none" onClick={() => toggleSection('offers')}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 font-mono">
+                        {collapsedSections.offers ? '▶' : '▼'}
+                      </span>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                          <span>🎯 落地工具与 Offer 矩阵 (Offers & Dynamic Tools Matrix)</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            {(lst.offers_matrix || []).length} 个转化工具
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          社媒 1v1 私信聊单与三轮心智流时，根据线索痛点关键词自适应匹配最精准的子工具/Offer 落地页。
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={handleLoadDefaultOffers}
-                        className="px-2 py-1 text-[11px] font-medium text-slate-600 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                        title="恢复高尔夫球车 4 大经典工具预设"
-                      >
-                        ↺ 恢复经典工具
-                      </button>
+                    <div className="flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={handleGenerateOffersMatrix}
@@ -1468,87 +1799,96 @@ export default function ListenerDrawer({ listener, onClose }) {
                         title="根据上方产品名称与功能简介一键智能推演落地工具矩阵"
                       >
                         {generatingOffers ? <span className="spin">⏳</span> : '🤖'}
-                        <span>{generatingOffers ? 'AI 正在推演工具矩阵...' : 'AI 自动生成工具矩阵'}</span>
+                        <span>{generatingOffers ? '推演中...' : 'AI 生成矩阵'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleLoadDefaultOffers}
+                        className="px-2 py-1 text-[11px] font-medium text-slate-600 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                        title="恢复高尔夫球车 4 大经典工具预设"
+                      >
+                        ↺ 经典预设
                       </button>
                       <button
                         type="button"
                         onClick={handleOpenAddOffer}
-                        className="px-2.5 py-1 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        className="px-2 py-1 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        <span>+</span> 添加工具 Offer
+                        <span>+</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Offers List */}
-                  <div className="space-y-2 pt-1">
-                    {(!lst.offers_matrix || lst.offers_matrix.length === 0) ? (
-                      <div className="text-center py-5 bg-white border border-dashed border-slate-200 rounded-xl space-y-2 px-4">
-                        <div className="text-2xl">🎯</div>
-                        <div className="text-xs text-slate-600 font-medium">当前未配置落地工具与 Offer 矩阵</div>
-                        <div className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                          填写站点名称与功能简介后，点击「AI 自动生成工具矩阵」，大模型将自动拆解你的网站并生成 3~5 个精准子工具/算力落地页与触发关键词！
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleGenerateOffersMatrix}
-                          disabled={generatingOffers}
-                          className="mt-1 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          🤖 为当前项目一键生成工具矩阵
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                        {lst.offers_matrix.map((offer, idx) => (
-                          <div key={offer.key || idx} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3 space-y-2 transition-all">
-                            <div className="flex items-start justify-between gap-1">
-                              <div>
-                                <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                                  <span>{offer.name}</span>
-                                  <span className="text-[10px] font-mono font-normal text-slate-400">({offer.key})</span>
-                                </div>
-                                <div className="text-[10px] font-mono text-indigo-600 mt-0.5 line-clamp-1 truncate max-w-[240px]">
-                                  🔗 {offer.url}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditOffer(idx)}
-                                  className="px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100 rounded border border-slate-200 cursor-pointer"
-                                >
-                                  编辑
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteOffer(idx)}
-                                  className="px-1.5 py-0.5 text-[10px] text-rose-600 hover:bg-rose-50 rounded border border-rose-200 cursor-pointer"
-                                >
-                                  删除
-                                </button>
-                              </div>
-                            </div>
-
-                            {offer.keywords && offer.keywords.length > 0 && (
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {(Array.isArray(offer.keywords) ? offer.keywords : String(offer.keywords).split(',')).slice(0, 6).map((kw, kidx) => (
-                                  <span key={kidx} className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                                    {kw.trim()}
-                                  </span>
-                                ))}
-                                {((Array.isArray(offer.keywords) ? offer.keywords.length : 0) > 6) && (
-                                  <span className="text-[10px] text-slate-400 px-1">
-                                    +{offer.keywords.length - 6}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                  {!collapsedSections.offers && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200/70">
+                      {(!lst.offers_matrix || lst.offers_matrix.length === 0) ? (
+                        <div className="text-center py-5 bg-white border border-dashed border-slate-200 rounded-xl space-y-2 px-4">
+                          <div className="text-2xl">🎯</div>
+                          <div className="text-xs text-slate-600 font-medium">当前未配置落地工具与 Offer 矩阵</div>
+                          <div className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                            填写站点名称与功能简介后，点击「AI 自动生成工具矩阵」，大模型将自动拆解你的网站并生成 3~5 个精准子工具/算力落地页与触发关键词！
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <button
+                            type="button"
+                            onClick={handleGenerateOffersMatrix}
+                            disabled={generatingOffers}
+                            className="mt-1 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            🤖 为当前项目一键生成工具矩阵
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          {lst.offers_matrix.map((offer, idx) => (
+                            <div key={offer.key || idx} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3 space-y-2 transition-all">
+                              <div className="flex items-start justify-between gap-1">
+                                <div>
+                                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                    <span>{offer.name}</span>
+                                    <span className="text-[10px] font-mono font-normal text-slate-400">({offer.key})</span>
+                                  </div>
+                                  <div className="text-[10px] font-mono text-indigo-600 mt-0.5 line-clamp-1 truncate max-w-[240px]">
+                                    🔗 {offer.url}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditOffer(idx)}
+                                    className="px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100 rounded border border-slate-200 cursor-pointer"
+                                  >
+                                    编辑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteOffer(idx)}
+                                    className="px-1.5 py-0.5 text-[10px] text-rose-600 hover:bg-rose-50 rounded border border-rose-200 cursor-pointer"
+                                  >
+                                    删除
+                                  </button>
+                                </div>
+                              </div>
+
+                              {offer.keywords && offer.keywords.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                  {(Array.isArray(offer.keywords) ? offer.keywords : String(offer.keywords).split(',')).slice(0, 6).map((kw, kidx) => (
+                                    <span key={kidx} className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                      {kw.trim()}
+                                    </span>
+                                  ))}
+                                  {((Array.isArray(offer.keywords) ? offer.keywords.length : 0) > 6) && (
+                                    <span className="text-[10px] text-slate-400 px-1">
+                                      +{offer.keywords.length - 6}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1597,26 +1937,38 @@ export default function ListenerDrawer({ listener, onClose }) {
           <div className="border-t border-slate-100" />
 
           {/* Notifications */}
-          <section className="space-y-3.5">
-            <S>Notifications <span className="font-normal normal-case">(sent on every keyword match)</span></S>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-600">Slack Webhook <span className="text-xs font-normal text-slate-400 ml-1">Block Kit format</span></span>
-              <input className="inp mt-1.5 text-sm" value={lst.slack_webhook || ''} placeholder="https://hooks.slack.com/services/…" onChange={e => update('slack_webhook', e.target.value)} />
-              <span className="text-xs text-slate-400 mt-1 block">Get at <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener" className="text-blue-500 hover:underline">api.slack.com/messaging/webhooks</a></span>
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block">
-                <span className="text-sm font-medium text-slate-600">Telegram Bot Token</span>
-                <input className="inp mt-1.5 text-sm font-mono" type="password" value={lst.telegram_bot_token || ''} placeholder="123456:ABC…" onChange={e => update('telegram_bot_token', e.target.value)} />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-slate-600">Telegram Chat ID</span>
-                <input className="inp mt-1.5 text-sm font-mono" value={lst.telegram_chat_id || ''} placeholder="-100123…" onChange={e => update('telegram_chat_id', e.target.value)} />
-              </label>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => toggleSection('notifications')}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-400 font-mono">{collapsedSections.notifications ? '▶' : '▼'}</span>
+                <S>Webhook 告警通知 <span className="font-normal normal-case text-slate-400">(Slack / Telegram)</span></S>
+              </div>
+              <span className="text-[10px] text-slate-400">
+                {lst.slack_webhook || lst.telegram_bot_token ? '🔔 已配置' : '可选配置'}
+              </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener" className="text-blue-500 hover:underline">@BotFather</a> · Chat ID via <a href="https://t.me/userinfobot" target="_blank" rel="noopener" className="text-blue-500 hover:underline">@userinfobot</a>
-            </p>
+            {!collapsedSections.notifications && (
+              <div className="space-y-3 pt-1">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-600">Slack Webhook <span className="text-xs font-normal text-slate-400 ml-1">Block Kit format</span></span>
+                  <input className="inp mt-1.5 text-sm" value={lst.slack_webhook || ''} placeholder="https://hooks.slack.com/services/…" onChange={e => update('slack_webhook', e.target.value)} />
+                  <span className="text-xs text-slate-400 mt-1 block">Get at <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener" className="text-blue-500 hover:underline">api.slack.com/messaging/webhooks</a></span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-600">Telegram Bot Token</span>
+                    <input className="inp mt-1.5 text-sm font-mono" type="password" value={lst.telegram_bot_token || ''} placeholder="123456:ABC…" onChange={e => update('telegram_bot_token', e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-600">Telegram Chat ID</span>
+                    <input className="inp mt-1.5 text-sm font-mono" value={lst.telegram_chat_id || ''} placeholder="-100123…" onChange={e => update('telegram_chat_id', e.target.value)} />
+                  </label>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener" className="text-blue-500 hover:underline">@BotFather</a> · Chat ID via <a href="https://t.me/userinfobot" target="_blank" rel="noopener" className="text-blue-500 hover:underline">@userinfobot</a>
+                </p>
+              </div>
+            )}
           </section>
 
           <div className="border-t border-slate-100" />
@@ -1663,59 +2015,6 @@ export default function ListenerDrawer({ listener, onClose }) {
                 <input type="number" min="0" className="inp mt-1.5 text-sm" value={lst.min_account_age_days || 0} onChange={e => update('min_account_age_days', +e.target.value)} />
               </label>
             </div>
-          </section>
-
-          <div className="border-t border-slate-100" />
-
-          {/* Schedule */}
-          <section className="space-y-3.5">
-            <div className="flex items-center justify-between">
-              <S>Schedule Window</S>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={!!lst.schedule_enabled} className="sr-only peer" onChange={e => update('schedule_enabled', e.target.checked)} />
-                <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:bg-blue-500 transition-colors" />
-                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
-              </label>
-            </div>
-            {lst.schedule_enabled ? (
-              <div className="space-y-3.5">
-                <label className="block">
-                  <span className="text-sm font-medium text-slate-600">Timezone</span>
-                  <input className="inp mt-1.5 text-sm" value={lst.schedule_timezone || 'UTC'} placeholder="UTC" onChange={e => update('schedule_timezone', e.target.value)} />
-                  <p className="text-xs text-slate-400 mt-1">IANA format: <code className="bg-slate-100 px-1 rounded">America/New_York</code> · <code className="bg-slate-100 px-1 rounded">Europe/London</code></p>
-                </label>
-                <div>
-                  <span className="text-sm font-medium text-slate-600 block mb-2">Active days</span>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {DAYS.map(([label, n]) => {
-                      const days = Array.isArray(lst.schedule_days) ? lst.schedule_days : [0, 1, 2, 3, 4, 5, 6];
-                      const on = days.includes(n);
-                      return (
-                        <button
-                          key={n}
-                          onClick={() => toggleDay(n)}
-                          className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-all ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-600">Start hour <span className="font-normal text-slate-400">(0–23)</span></span>
-                    <input type="number" min="0" max="23" className="inp mt-1.5 text-sm" value={lst.schedule_start ?? 0} onChange={e => update('schedule_start', +e.target.value)} />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-600">End hour <span className="font-normal text-slate-400">(1–24)</span></span>
-                    <input type="number" min="1" max="24" className="inp mt-1.5 text-sm" value={lst.schedule_end ?? 24} onChange={e => update('schedule_end', +e.target.value)} />
-                  </label>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400">Enable to restrict when this listener is active (e.g. business hours only).</p>
-            )}
           </section>
 
           <div className="border-t border-slate-100" />

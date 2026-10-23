@@ -125,8 +125,8 @@ def clean_base_reply(text: str) -> str:
     s = re.sub(r"\blet me know if you want me to drop the link(?:,\s*or)?\s*", "", s, flags=re.IGNORECASE)
     s = re.sub(r"\.{2,}", ".", s)
 
-    # 6. Strip cliché trailing AI signoffs
-    s = re.sub(r"\n+(?:Hope this helps[!.]*|Let me know if you have any questions[!.]*|Best regards,.*|Cheers[!.]*)\s*$", "", s, flags=re.IGNORECASE)
+    # 6. Strip cliché trailing AI signoffs and solicitation triggers
+    s = re.sub(r"\n+(?:Hope this helps[!.]*|Let me know.*|Feel free to.*|I can help.*|Best regards,.*|Cheers[!.]*)\s*$", "", s, flags=re.IGNORECASE)
 
     # 7. Normalize punctuation inflation (e.g. '!!' -> '!')
     s = re.sub(r"!{2,}", "!", s)
@@ -662,10 +662,10 @@ ANTI-BAN & REDDIT ALGORITHM SURVIVAL RULES (CRITICAL):
    - NO emojis unless 1 common emoji fits naturally.
    - NO generic greetings ("Hey there!", "Hope this helps!").
    - Max 2-3 concise paragraphs.
-7. NATURAL PEER-TO-PEER CLOSING (ZERO SPAM TRIGGER WORDS):
-   - Conclude naturally like an experienced shop mechanic / helpful enthusiast offering follow-up help if they get stuck:
-     e.g., "Let me know if you run into any snags with the pinouts or wiring colors and I can pull the exact service manual specs", or "Shout if you need the exact bolt torque specs or harness diagram".
-   - STRICT BAN ON DM/PM SPAM CUES: Do NOT use phrases like "shoot me a DM", "DM me", "send me a PM", or "let me know if you want me to drop the link". These trigger AutoMod spam filters and look like affiliate marketing.
+7. NATURAL PEER-TO-PEER CLOSING (ZERO SOLICITATION & ZERO SPAM TRIGGER WORDS):
+   - STRICT BAN ON SOLICITATION & DM CUES: Strictly DO NOT use proactive offering phrases like "let me know", "I can help", "happy to help", "reach out", "shoot me a DM", "DM me", or "send me a PM". These trigger AutoMod Rule 6 (No Solicitation) removals.
+   - If using STEALTH PROFILE-ONLY mode, naturally end with the profile hook (e.g., "pinned the full breakdown on my profile bio if helpful").
+   - Otherwise, conclude with an objective, neutral observation (e.g. "hope that clears up the learning phase nuances", "should get you back on track").
    - If citing the site/tool, keep it natural and subtle in accordance with the organic domain citation rules.
 8. STRICT INBOUND HOOK MANDATE (ZERO FALSE CLAIMS):
    - NEVER falsely claim in public that you already sent a message or link.
@@ -1435,11 +1435,11 @@ def generate_listener_profile(
     if is_x:
         platform_rules = """PLATFORM: 𝕏 (Twitter) - Global Unbounded Firehose
 MANDATORY RULES FOR 𝕏:
-1. Every single keyword MUST be a compound, domain-anchored phrase (2-4 words) that tightly bounds search (e.g. 'tiktok agency account', 'tiktok ad credit', 'shopify app review', 'golf cart street legal').
-2. NEVER output isolated single generic words (e.g. NEVER output 'tiktok', 'ads', 'marketing', 'pricing', 'alternative', 'tool'). Single words trigger catastrophic noise firehoses across 500M daily tweets.
-3. Negative keywords: 12-20 vertical-specific negative exclusion keywords to eliminate noise (memes, crypto, airdrop, solana, gaming, sports, viral gossip, bot spam, free followers).
+1. Every single keyword MUST be a compound, domain-anchored phrase (2-4 words) that tightly bounds search around real practitioner problems, troubleshooting, or buyer intent (e.g. 'tiktok agency account', 'tiktok ad spend limit', 'ad account suspended', 'events api deduplication').
+2. STRICTLY FORBIDDEN WORDS: NEVER output 'buy', 'coupon', 'promo code', 'voucher', 'free', 'discount', 'signup bonus', or isolated single generic words (e.g. 'tiktok', 'ads', 'marketing'). On 𝕏, these are dominated 99.9% by black-hat account sellers and spam bots.
+3. Negative keywords: 14-25 vertical-specific negative exclusion keywords to eliminate noise. MUST include 𝕏 bot signatures ('whatsapp', 'dm me', 'inbox me', 'pva accounts', 'aged accounts', 'instant delivery', 'hire me', 'service available', 'giveaway', 'followers', 'likes', 'crypto', 'airdrop', 'solana', 'telegram bot', 't.me/', 'wa.me/').
 4. Filter prompt: Formulate an executive commercial-intent gatekeeper. Reply YES only if the tweet indicates an active commercial problem, setup blocker, or purchasing intent; Reply NO to crypto shills, personal videos, entertainment, memes, or bot retweets.
-5. Pitch instruction: MUST be under 200 characters total, peer-to-peer technical diagnosis first; reference {site_name} neutrally as a verified resource or database; NO raw dollar promises ($500 match), NO promo codes, NO pushy selling."""
+5. Pitch instruction: MUST be under 180 characters total. Give a sharp 1.5-sentence technical diagnosis first; casually mention benchmark checklist is pinned on bio; strictly lowercase, peer-to-peer, NO direct links, NO dollar promises ($500 match), NO promo codes."""
     else:
         platform_rules = """PLATFORM: Reddit - Community-Partitioned Subreddits
 MANDATORY RULES FOR REDDIT:
@@ -1516,25 +1516,52 @@ Respond with ONLY a valid, parseable JSON object matching this exact schema:
 
     # Post-process & Harden Pitch Instruction with Anti-Ban Guardrails
     pitch_p = parsed.get("pitch_instruction", "").strip()
-    anti_ban_guard = (
-        "Provide genuine technical diagnosis first. Mention the resource strictly in the 3rd person as an objective reference or database. "
-        "Never sound like a salesperson, and never mention raw promo dollar amounts or discount codes."
-    )
-    if not pitch_p:
-        parsed["pitch_instruction"] = anti_ban_guard
-    elif "salesperson" not in pitch_p.lower() and "dollar" not in pitch_p.lower() and "anti-ban" not in pitch_p.lower():
-        parsed["pitch_instruction"] = f"{pitch_p} {anti_ban_guard}"
+    if is_x:
+        if len(pitch_p) > 200 or "bio" not in pitch_p.lower():
+            parsed["pitch_instruction"] = (
+                f"Give a sharp 1.5-sentence technical diagnosis first. "
+                f"Casually mention the {site_name} checklist is pinned on bio. "
+                f"Strictly lowercase, under 180 chars, zero sales jargon."
+            )
+        else:
+            parsed["pitch_instruction"] = pitch_p
     else:
-        parsed["pitch_instruction"] = pitch_p
+        anti_ban_guard = (
+            "Provide genuine technical diagnosis first. Mention the resource strictly in the 3rd person as an objective reference or database. "
+            "Never sound like a salesperson, and never mention raw promo dollar amounts or discount codes."
+        )
+        if not pitch_p:
+            parsed["pitch_instruction"] = anti_ban_guard
+        elif "salesperson" not in pitch_p.lower() and "dollar" not in pitch_p.lower() and "anti-ban" not in pitch_p.lower():
+            parsed["pitch_instruction"] = f"{pitch_p} {anti_ban_guard}"
+        else:
+            parsed["pitch_instruction"] = pitch_p
 
-    # Filter out single-word generic keywords that slipped through
+    # Filter out single-word or forbidden keywords
+    forbidden_x_words = ("buy ", "buy_", "coupon", "promo code", "voucher", "discount", "free ", "signup bonus")
     cleaned_kws = []
     for kw in parsed.get("keywords", []):
         k = str(kw).strip()
         if not k:
             continue
+        if is_x and any(fw in k.lower() for fw in forbidden_x_words):
+            continue
         cleaned_kws.append(k)
     parsed["keywords"] = cleaned_kws
+
+    # Platform-specific negative keyword guarantees
+    if is_x:
+        x_bot_negatives = [
+            "whatsapp", "dm me", "inbox me", "pva accounts", "aged accounts available",
+            "instant delivery", "hire me", "service available", "giveaway", "followers",
+            "likes", "crypto", "airdrop", "solana", "telegram bot", "t.me/", "wa.me/"
+        ]
+        curr_negs = parsed.get("negative_keywords", [])
+        curr_negs_lower = {n.lower() for n in curr_negs}
+        for x_neg in x_bot_negatives:
+            if x_neg.lower() not in curr_negs_lower:
+                curr_negs.append(x_neg)
+        parsed["negative_keywords"] = curr_negs
 
     if not parsed.get("name"):
         parsed["name"] = f"{site_name} {'𝕏 Radar' if is_x else 'Reddit Radar'}"

@@ -197,6 +197,45 @@ class TestAiPipeline(unittest.TestCase):
             self.assertIn("dollar", profile["pitch_instruction"].lower())
             self.assertIn("3rd person", profile["pitch_instruction"].lower())
 
+    def test_generate_listener_profile_x_platform_hardening(self):
+        from unittest.mock import patch
+        from ai import generate_listener_profile
+
+        fake_cred = {"type": "mock"}
+        # Case: AI generated keywords including forbidden buy/coupon words on X
+        raw_llm_output = (
+            '{\n'
+            '  "name": "TikTok Agency Radar",\n'
+            '  "subreddits": "",\n'
+            '  "keywords": ["tiktok agency account", "buy tiktok ad account", "tiktok ads coupon", "ad spend limit"],\n'
+            '  "negative_keywords": ["creator fund", "dance"],\n'
+            '  "filter_prompt": "Commercial intent gatekeeper prompt",\n'
+            '  "pitch_instruction": "Long winded sales pitch over 200 chars that will trigger bans and fail platform guidelines."\n'
+            '}'
+        )
+        with patch("ai.run_ai_prompt", return_value=raw_llm_output):
+            profile = generate_listener_profile(
+                site_name="Adgrowth-Lab",
+                site_description="Official agency ad accounts with spend match",
+                site_url="https://adgrowth-lab.github.io",
+                platform="x",
+                credential=fake_cred
+            )
+            # Forbidden keywords must be scrubbed on X
+            self.assertIn("tiktok agency account", profile["keywords"])
+            self.assertIn("ad spend limit", profile["keywords"])
+            self.assertNotIn("buy tiktok ad account", profile["keywords"])
+            self.assertNotIn("tiktok ads coupon", profile["keywords"])
+
+            # X bot negative keywords must be auto-injected
+            self.assertIn("whatsapp", profile["negative_keywords"])
+            self.assertIn("dm me", profile["negative_keywords"])
+            self.assertIn("crypto", profile["negative_keywords"])
+
+            # Pitch instruction must enforce bio checklist and character bounds
+            self.assertIn("bio", profile["pitch_instruction"].lower())
+            self.assertLessEqual(len(profile["pitch_instruction"]), 190)
+
     def test_extract_metadata_from_url_rich_extraction(self):
         from unittest.mock import patch, MagicMock
         from ai import extract_metadata_from_url

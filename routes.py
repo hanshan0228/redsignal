@@ -905,6 +905,25 @@ def api_generate_listener_profile(req: _GenProfileReq) -> dict:
                 keywords=data.get("keywords", []),
                 credential=cred
             )
+
+        is_x = req.platform in ("x", "twitter")
+        is_forum = req.platform in ("forum", "vbulletin", "phpbb", "xenforo")
+        if is_x:
+            data.setdefault("stealth_mode", "profile_only")
+            data.setdefault("anti_ban_mode", "brand_search")
+            data.setdefault("reply_cooldown_minutes", 45)
+            data.setdefault("daily_reply_limit", 6)
+        elif is_forum:
+            data.setdefault("stealth_mode", "profile_only")
+            data.setdefault("anti_ban_mode", "brand_search")
+            data.setdefault("reply_cooldown_minutes", 30)
+            data.setdefault("daily_reply_limit", 10)
+        else:
+            data.setdefault("stealth_mode", "brand_search")
+            data.setdefault("anti_ban_mode", "adaptive")
+            data.setdefault("reply_cooldown_minutes", 30)
+            data.setdefault("daily_reply_limit", 12)
+
         return {"ok": True, "data": data}
     except Exception as e:
         return {"ok": False, "error": f"AI 分析生成失败: {e}"}
@@ -1056,18 +1075,40 @@ def api_ingest_url(req: _IngestUrlReq) -> dict:
             credential=cred
         )
 
+        is_x = req.platform in ("x", "twitter")
+        is_forum = req.platform in ("forum", "vbulletin", "phpbb", "xenforo")
+        if is_x:
+            stealth_mode = "profile_only"
+            anti_ban_mode = "brand_search"
+            reply_cooldown_minutes = 45
+            daily_reply_limit = 6
+        elif is_forum:
+            stealth_mode = "profile_only"
+            anti_ban_mode = "brand_search"
+            reply_cooldown_minutes = 30
+            daily_reply_limit = 10
+        else:
+            stealth_mode = "brand_search"
+            anti_ban_mode = "adaptive"
+            reply_cooldown_minutes = 30
+            daily_reply_limit = 12
+
         return {
             "ok": True,
             "data": {
                 "site_name": site_name,
                 "site_description": site_desc,
                 "site_url": site_url,
-                "name": profile.get("name") or f"{site_name} Radar",
+                "name": profile.get("name") or f"{site_name} {'𝕏 Radar' if is_x else 'Reddit Radar'}",
                 "subreddits": profile.get("subreddits", ""),
                 "keywords": profile.get("keywords", []),
                 "negative_keywords": profile.get("negative_keywords", []),
                 "pitch_instruction": profile.get("pitch_instruction", ""),
                 "filter_prompt": profile.get("filter_prompt", ""),
+                "stealth_mode": stealth_mode,
+                "anti_ban_mode": anti_ban_mode,
+                "reply_cooldown_minutes": reply_cooldown_minutes,
+                "daily_reply_limit": daily_reply_limit,
                 "personas": personas,
                 "visual_assets": visual_assets,
                 "offers_matrix": offers_matrix

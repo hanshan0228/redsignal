@@ -548,6 +548,84 @@ def get_account_maturity_tier(karma: int = 0, created_utc: float = 0.0) -> dict:
         }
 
 
+HIGH_RISK_COMMERCIAL_SUBS = {
+    "tiktokads", "facebookads", "dropship", "dropshipping",
+    "shopify", "affiliate_marketing", "adops", "ecommerce", "ppc"
+}
+
+
+def tokenize_words(text: str) -> set[str]:
+    """Tokenize text into lowercase alphanumeric word set for Jaccard distance calculation."""
+    if not text:
+        return set()
+    return set(re.findall(r"[a-zA-Z0-9]+", text.lower()))
+
+
+def check_jaccard_similarity(
+    new_text: str,
+    credential_id: str = "",
+    platform: str = "",
+    threshold: float = 0.50,
+    window_size: int = 20
+) -> tuple[bool, float, str]:
+    """Universal Hunter Anti-Clustering Check:
+    Calculates Jaccard word similarity between new reply draft and recent submitted/posted replies.
+    If similarity >= threshold (default 0.50), flags clustering risk to prevent Reddit/X SimHash bans."""
+    new_tokens = tokenize_words(new_text)
+    if not new_tokens or len(new_tokens) < 4:
+        return True, 0.0, ""
+
+    with get_db() as db:
+        if credential_id:
+            rows = db.execute(
+                """SELECT reply_text FROM reply_queue
+                   WHERE credential_id = ? AND status IN ('submitted', 'posted')
+                   ORDER BY id DESC LIMIT ?""",
+                (credential_id, window_size)
+            ).fetchall()
+        elif platform:
+            rows = db.execute(
+                """SELECT reply_text FROM reply_queue
+                   WHERE platform = ? AND status IN ('submitted', 'posted')
+                   ORDER BY id DESC LIMIT ?""",
+                (platform, window_size)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT reply_text FROM reply_queue
+                   WHERE status IN ('submitted', 'posted')
+                   ORDER BY id DESC LIMIT ?""",
+                (window_size,)
+            ).fetchall()
+
+    max_sim = 0.0
+    conflicting_snippet = ""
+    for r in rows:
+        prev_text = r["reply_text"] if isinstance(r, dict) else r[0]
+        prev_tokens = tokenize_words(prev_text or "")
+        if not prev_tokens:
+            continue
+        intersection = len(new_tokens & prev_tokens)
+        union = len(new_tokens | prev_tokens)
+        sim = intersection / union if union > 0 else 0.0
+        if sim > max_sim:
+            max_sim = sim
+            conflicting_snippet = prev_text or ""
+
+    if max_sim >= threshold:
+        return False, max_sim, conflicting_snippet[:80] + "..." if conflicting_snippet else ""
+    return True, max_sim, ""
+
+
+def check_karma_gate(karma: int, subreddit: str) -> tuple[bool, str]:
+    """Universal Hunter Karma Gate:
+    Enforces minimum 50 comment karma before posting into high-risk commercial subreddits."""
+    sub_clean = (subreddit or "").lower().replace("r/", "").strip()
+    if sub_clean in HIGH_RISK_COMMERCIAL_SUBS and (karma or 0) < 50:
+        return False, f"账号 Karma ({karma or 0}) < 50。r/{sub_clean} 版块 AutoMod 规则极严，新号发帖易被秒删。建议先在通用版块养号积累 Karma。"
+    return True, "OK"
+
+
 def record_rate_limit_cooldown(credential_id: str, cooldown_seconds: int, account_name: str = "Reddit") -> None:
     """Record official platform rate limit cooldown in account_quota."""
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -673,6 +751,26 @@ def submit_reddit_reply(
             db_log("info", "rolling_link_ratio", f"🛡️ 账号 {cred_id} 发链率将超标 ({link_cnt+1}/{tot_cnt+1} > 20%)，已安全降级为品牌词模式发帖")
             reply_text = downgraded
             reply_item["reply_text"] = downgraded
+
+    # Universal Hunter: Karma Gate Check for Commercial Subreddits
+    subreddit = reply_item.get("subreddit") or ""
+    karma = reddit_cred.get("karma") if reddit_cred else None
+    if subreddit and karma is not None and not reply_item.get("force_post"):
+        karma_ok, karma_reason = check_karma_gate(karma, subreddit)
+        if not karma_ok:
+            db_log("warn", "karma_gate", f"🛡️ 账号 {cred_id} 触发版块门禁: {karma_reason}")
+            return {
+                "success": False,
+                "error": f"版块安全门禁拦截: {karma_reason}",
+                "comment_id": None,
+                "comment_url": None,
+            }
+
+    # Universal Hunter: Jaccard Anti-Clustering Check
+    if cred_id and not reply_item.get("skip_anti_clustering"):
+        sim_ok, max_sim, conflict = check_jaccard_similarity(reply_text, credential_id=cred_id, platform="reddit", threshold=0.50)
+        if not sim_ok:
+            db_log("warn", "anti_clustering", f"🛡️ 账号 {cred_id} 触发文本聚类风险 (相似度 {max_sim*100:.1f}% >= 50% 与历史回复重合: {conflict})")
 
     tid_raw = str(target_id)
     # Test guard: never make live HTTP calls for test items
@@ -1570,20 +1668,30 @@ def check_comment_visibility(comment_url: str, comment_id: str) -> bool:
                 return True
 
         cid = comment_id.replace("t1_", "").strip()
-        req = urllib.request.Request(clean_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            content = resp.read().decode("utf-8", errors="ignore")
-            # Verify comment exists in unauthenticated DOM (supporting classic, redesign, and shreddit tags)
-            is_present = (
-                cid in content or
-                f"t1_{cid}" in content or
-                f'thingid="t1_{cid}"' in content or
-                f'id="t1_{cid}"' in content or
-                f'data-comment-id="{cid}"' in content
-            )
-            # Detect if AutoMod marked it as removed/deleted in public HTML
-            is_removed = bool(re.search(rf'thingid="t1_{cid}"[^>]*class="[^"]*(deleted|removed)', content, re.IGNORECASE))
-            return is_present and not is_removed
+        if not cid or cid in ("posted", "mock", "test_comment_mock"):
+            return True
+        try:
+            req = urllib.request.Request(clean_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                content = resp.read().decode("utf-8", errors="ignore")
+                # Verify comment exists in unauthenticated DOM (supporting classic, redesign, and shreddit tags)
+                is_present = (
+                    cid in content or
+                    f"t1_{cid}" in content or
+                    f'thingid="t1_{cid}"' in content or
+                    f'id="t1_{cid}"' in content or
+                    f'data-comment-id="{cid}"' in content
+                )
+                # Detect if AutoMod marked it as removed/deleted in public HTML
+                is_removed = bool(re.search(rf'thingid="t1_{cid}"[^>]*class="[^"]*(deleted|removed)', content, re.IGNORECASE))
+                return is_present and not is_removed
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403, 429, 503):
+                # Cloudflare or WAF challenge - don't falsely report as shadowbanned
+                return True
+            if e.code == 404:
+                return False
+            return True
     except Exception:
         return True  # If request times out or 429, don't flag as shadowbanned
 

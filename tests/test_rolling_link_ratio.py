@@ -7,7 +7,11 @@ from db import get_db, init_db, migrate_schema
 from auto_responder import (
     check_rolling_link_ratio,
     downgrade_reply_links_to_brand_search,
-    get_account_maturity_tier
+    get_account_maturity_tier,
+    check_jaccard_similarity,
+    check_karma_gate,
+    tokenize_words,
+    submit_reddit_reply
 )
 from barnacle import search_google_serp, hunt_and_auto_draft_barnacle
 
@@ -115,6 +119,71 @@ class TestRollingLinkRatioAndBarnacleHunt(unittest.TestCase):
         self.assertEqual(mature["tier"], "MATURE")
         self.assertTrue(mature["can_post_links"])
         self.assertEqual(mature["max_link_ratio"], 0.20)
+
+    def test_universal_hunter_jaccard_similarity(self):
+        """Test Universal Hunter tokenization and Jaccard anti-clustering similarity check."""
+        # 1. Test tokenize_words
+        tokens = tokenize_words("TikTok Ads billing hold on BC account!")
+        self.assertIn("tiktok", tokens)
+        self.assertIn("ads", tokens)
+        self.assertIn("billing", tokens)
+        self.assertIn("bc", tokens)
+
+        # 2. Test empty / short text returns True (0.0 similarity)
+        ok, sim, _ = check_jaccard_similarity("hi")
+        self.assertTrue(ok)
+        self.assertEqual(sim, 0.0)
+
+        cred_id = "test_rlr_cred_jaccard"
+        # Insert a prior submitted comment
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO reply_queue (hit_id, credential_id, reply_text, status) VALUES (?, ?, ?, 'submitted')",
+                ("hit_jac_1", cred_id, "TikTok ads agency accounts bypass the daily spend cap and threshold hold.")
+            )
+
+        # Check identical or highly overlapping reply (> 50%)
+        very_similar = "TikTok ads agency accounts bypass the daily spend cap and billing hold."
+        allowed, sim_score, conflict = check_jaccard_similarity(very_similar, credential_id=cred_id, threshold=0.50)
+        self.assertFalse(allowed)
+        self.assertGreaterEqual(sim_score, 0.50)
+        self.assertIn("TikTok ads agency", conflict)
+
+        # Check distinct reply (< 50%)
+        distinct = "For Shopify speed optimization, focus on compressing image assets and deferring scripts."
+        allowed_dist, sim_score_dist, _ = check_jaccard_similarity(distinct, credential_id=cred_id, threshold=0.50)
+        self.assertTrue(allowed_dist)
+        self.assertLess(sim_score_dist, 0.50)
+
+    def test_universal_hunter_karma_gate(self):
+        """Test Universal Hunter Karma Gate for commercial subreddits."""
+        # 1. Commercial sub with low karma (< 50) -> blocked
+        blocked, reason = check_karma_gate(karma=10, subreddit="tiktokads")
+        self.assertFalse(blocked)
+        self.assertIn("Karma (10) < 50", reason)
+
+        blocked_r, reason_r = check_karma_gate(karma=0, subreddit="r/dropship")
+        self.assertFalse(blocked_r)
+        self.assertIn("Karma (0) < 50", reason_r)
+
+        # 2. Commercial sub with high karma (>= 50) -> passed
+        passed, _ = check_karma_gate(karma=85, subreddit="tiktokads")
+        self.assertTrue(passed)
+
+        # 3. Non-commercial sub with low karma -> passed
+        passed_general, _ = check_karma_gate(karma=5, subreddit="golfcarts")
+        self.assertTrue(passed_general)
+
+        # 4. Verify submit_reddit_reply triggers karma gate blocking
+        low_karma_cred = {"id": "test_rlr_low_karma", "type": "reddit", "karma": 5}
+        reply_item = {
+            "reply_text": "Agency account routing overview.",
+            "target_id": "test_t1_commercial",
+            "subreddit": "tiktokads"
+        }
+        res = submit_reddit_reply(reply_item, low_karma_cred)
+        self.assertFalse(res["success"])
+        self.assertIn("版块安全门禁拦截", res["error"])
 
     @patch("urllib.request.urlopen")
     def test_search_google_serp(self, mock_urlopen):
