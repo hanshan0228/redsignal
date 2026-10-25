@@ -265,6 +265,84 @@ class TestAiPipeline(unittest.TestCase):
             self.assertIn("Official TikTok ad credits", res["description"])
             self.assertIn("Zero Spend Limits", res["description"])
 
+    def test_multichannel_formatting_bio_routing_and_inbound_dm(self):
+        asset = {
+            "name": "TikTok Agency Tier Matrix",
+            "image_url": "https://adgrowth-lab.github.io/assets/tier-matrix.webp",
+            "target_url": "https://adgrowth-lab.github.io/",
+            "caption": "TikTok Agency Whitelist & Spend Match Matrix"
+        }
+        # Bio routing mode
+        pack_bio = format_multichannel_pack(
+            base_reply="Personal accounts hit $50/day spend holds due to new risk scoring.",
+            title="TikTok ads daily budget capped",
+            excerpt="Account stuck at 50/day limit on new BM.",
+            site_name="Adgrowth-Lab",
+            site_url="https://adgrowth-lab.github.io/",
+            anti_ban_mode="safe",
+            matched_asset=asset,
+            stealth_mode="bio_routing"
+        )
+        self.assertNotIn("https://adgrowth-lab.github.io/", pack_bio["reddit"])
+        self.assertIn("Adgrowth-Lab database", pack_bio["reddit"])
+
+        # Inbound DM mode
+        pack_dm = format_multichannel_pack(
+            base_reply="Personal accounts hit $50/day spend holds due to new risk scoring.",
+            title="TikTok ads daily budget capped",
+            excerpt="Account stuck at 50/day limit on new BM.",
+            site_name="Adgrowth-Lab",
+            site_url="https://adgrowth-lab.github.io/",
+            anti_ban_mode="safe",
+            matched_asset=asset,
+            stealth_mode="inbound_dm"
+        )
+        self.assertNotIn("https://adgrowth-lab.github.io/", pack_dm["reddit"])
+        self.assertIn("shoot me a DM", pack_dm["reddit"])
+
+    def test_dm_agent_tiktok_agency_drafting(self):
+        from dm_agent import draft_automated_reply
+        from unittest.mock import patch
+
+        # Fallback test (when AI prompt throws) for Round 1, 2, 3
+        with patch("dm_agent.run_ai_prompt", side_effect=RuntimeError("AI Offline")):
+            r1 = draft_automated_reply(
+                partner_handle="ecom_scaler",
+                inbound_text="Hey saw your comment, can you send the breakdown?",
+                target_round=1,
+                campaign_name="Adgrowth-Lab",
+                affiliate_url="https://adgrowth-lab.github.io/",
+                ai_credential=None,
+                platform="reddit"
+            )
+            self.assertIn("adgrowth-lab.github.io", r1)
+            self.assertIn("breakdown sheet", r1)
+
+            r2 = draft_automated_reply(
+                partner_handle="ecom_scaler",
+                inbound_text="We are running dropshipping and keep getting hit with billing limits.",
+                target_round=2,
+                campaign_name="Adgrowth-Lab",
+                affiliate_url="https://adgrowth-lab.github.io/",
+                ai_credential=None,
+                platform="reddit"
+            )
+            self.assertIn("$50/day", r2)
+            self.assertIn("agency lines", r2)
+
+            r3 = draft_automated_reply(
+                partner_handle="ecom_scaler",
+                inbound_text="Where can I apply for the whitelisted agency account?",
+                target_round=3,
+                campaign_name="Adgrowth-Lab",
+                affiliate_url="https://adgrowth-lab.github.io/",
+                ai_credential=None,
+                platform="reddit"
+            )
+            self.assertIn("adgrowth-lab.github.io", r3)
+            self.assertIn("t.me/adgrowth_lab", r3)
+            self.assertIn("$6,000", r3)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -668,7 +668,17 @@ def cmd_dm(args):
     # Craft high-converting Inbound DM Hook (Never falsely claim "I sent a DM")
     # Rule: Invite the user to reach out, ensuring 100% compliant, zero-spam inbound intent
     tool_key = routed.get("tool_key") or routed.get("key") or ""
-    if tool_key == "serial_decoder":
+    if tool_key in ("tiktok_spend_match_calculator", "ad_credit_calculator"):
+        dm_hook = "I benchmarked the agency pricing tiers and spend match requirements on a spreadsheet. Feel free to shoot me a DM and I'll send it over."
+    elif tool_key in ("tier_eligibility_checker", "agency_account_matcher"):
+        dm_hook = "Put together a quick 1-page checklist on how to qualify for Ads Manager whitelist lines without spending limits. Drop me a DM if you want the breakdown doc."
+    elif tool_key == "coupon_stack_validator":
+        dm_hook = "Mapped out the official TikTok ad voucher verification flow and coupon stacking rules on a sheet. Shoot me a message if you want the checklist."
+    elif tool_key in ("scaling_roas_simulator", "roas_budget_planner"):
+        dm_hook = "Ran the numbers on effective CPA reduction with the tiered ad spend match. Drop me a DM if you want the break-even calculator spreadsheet."
+    elif tool_key in ("ai_ip_unlock_checker", "ip_failover_status_monitor"):
+        dm_hook = "Tested the clean IP node pools and automatic IP failover logs across carriers. Feel free to shoot me a DM if you want the verification sheet."
+    elif tool_key == "serial_decoder":
         dm_hook = "I've got the OEM serial breakdown charts on my bench. If you're not sure which digit is the build year, feel free to shoot me a DM with the serial number and I'll look it up for you."
     elif tool_key == "street_legal":
         dm_hook = "I keep a reference sheet of the county DMV inspection requirements and FMVSS 500 checklists. If your local police department is giving you conflicting answers, feel free to shoot me a DM and I can share the state statute breakdown."
@@ -677,7 +687,7 @@ def cmd_dm(args):
     elif tool_key == "speed_calc":
         dm_hook = "I've got the tire diameter to gear ratio RPM chart for high-speed controllers. If you're trying to figure out motor heat vs top-end speed, feel free to shoot me a DM and I can run the numbers for your setup."
     else:
-        dm_hook = "I've got the factory service manual and pinout schematics on my bench. If you get stuck on the wiring or test points, feel free to shoot me a DM and I'll send it over."
+        dm_hook = "I've got the comparison matrix and troubleshooting notes on my desk. If you want the raw doc, feel free to shoot me a DM and I'll share it."
 
     tool_disp = f"{routed.get('tool_name')} ({routed.get('tool_name_en')})" if routed.get('tool_name_en') and routed.get('tool_name_en') != routed.get('tool_name') else (routed.get('tool_name') or "General Technical Specs")
 

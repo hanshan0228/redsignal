@@ -193,15 +193,31 @@ def draft_automated_reply(
         ai_credential = next((c for c in cfg.get("credentials", []) if c.get("type") in ("anthropic", "openai", "ollama")), None)
 
     prefix = "u/" if platform == "reddit" else "@"
+    is_tiktok = any(k in (campaign_name + " " + inbound_text).lower() for k in ("tiktok", "adgrowth", "agency", "spend match"))
+    is_cart = any(k in (campaign_name + " " + inbound_text).lower() for k in ("fairway", "golf cart", "cart", "solenoid", "lsv"))
+
+    if is_tiktok:
+        goal_prompt = f"""Goal for this turn (Funnel Round {target_round} of 3):
+- If Round 1: Deliver pure technical setup guidance or the promised tier breakdown sheet ({tracked_affiliate_url}). Zero aggressive selling. Friendly, peer-to-peer.
+- If Round 2: Diagnose their daily spend bottleneck (personal accounts capped at $50/day vs direct whitelisted agency lines with Ads Manager balance deposits). Ask about scaling and card decline issues.
+- If Round 3: Send official partner portal link ({tracked_affiliate_url}) to claim the tiered spend match (up to $6,000 credit). For large budgets (> $4,000/mo), mention VIP Concierge on Telegram (https://t.me/adgrowth_lab)."""
+    elif is_cart:
+        goal_prompt = f"""Goal for this turn (Funnel Round {target_round} of 3):
+- If Round 1: Deliver pure hands-on garage troubleshooting guidance or test voltages. Zero aggressive selling. Friendly, peer-to-peer.
+- If Round 2: Explain why double-checking wiring harness and controller pinout before buying new parts avoids burning controllers.
+- If Round 3: Share the free interactive specs tool ({tracked_affiliate_url}) with pinouts and wiring schematics."""
+    else:
+        goal_prompt = f"""Goal for this turn (Funnel Round {target_round} of 3):
+- If Round 1: Deliver pure technical setup guidance or empathy. Zero aggressive selling. Friendly, peer-to-peer.
+- If Round 2: Explain why you personally use {campaign_name} (BandwagonHost/IT7 Networks official, automatic background IP replacement if blocked by GFW or OpenAI, CN2 GIA/9929 premium backbone). Highlight high ROI and peace of mind. Also offer to send a free setup & speed test checklist if they need it.
+- If Round 3: Send the tracked referral link ({tracked_affiliate_url}) and mention coupon code '{discount_code}' (5.2% perpetual recurring discount). Transparently include: "(透明说明：这是我的返佣推荐链接，但服务确实是我用了两年最稳的)"."""
+
     prompt = f"""You are an authentic, experienced developer and tech enthusiast having a private 1v1 message conversation on {platform.upper()} with {prefix}{partner_handle}.
 
 Their incoming message to you:
 "{inbound_text}"
 
-Goal for this turn (Funnel Round {target_round} of 3):
-- If Round 1: Deliver pure technical setup guidance or empathy. Zero aggressive selling. Friendly, peer-to-peer.
-- If Round 2: Explain why you personally use {campaign_name} (BandwagonHost/IT7 Networks official, automatic background IP replacement if blocked by GFW or OpenAI, CN2 GIA/9929 premium backbone). Highlight high ROI and peace of mind. Also offer to send a free setup & speed test checklist if they need it.
-- If Round 3: Send the tracked referral link ({tracked_affiliate_url}) and mention coupon code '{discount_code}' (5.2% perpetual recurring discount). Transparently include: "(透明说明：这是我的返佣推荐链接，但服务确实是我用了两年最稳的)".
+{goal_prompt}
 
 COMMUNICATION RULES:
 1. Natural conversational tone (Chinese or English matching the user's language).
@@ -216,6 +232,23 @@ Write ONLY the direct message text to send:"""
         return reply.strip()
     except Exception as e:
         db_log("error", "dm_agent", f"AI draft failed: {e}")
+        if is_tiktok:
+            if target_round >= 3:
+                return (
+                    f"You can check the official partner portal and claim the tiered spend match (up to $6,000 credit) here: {tracked_affiliate_url} "
+                    f"Takes ~3 mins to attach. If you guys are scaling past $4k/month, the VIP team on Telegram (https://t.me/adgrowth_lab) can fast-track manual credit line approval."
+                )
+            elif target_round == 2:
+                return (
+                    "Quick question though — are you mostly running direct dropshipping or private-label DTC? "
+                    "Self-serve accounts usually get hard-capped at $50/day around week 2, and virtual cards keep getting flagged. "
+                    "Direct whitelisted agency lines deposit balance straight into Ads Manager with zero markup. Have you looked into that setup?"
+                )
+            else:
+                return (
+                    f"Hey! Saw your question regarding TikTok billing holds and daily spend caps. "
+                    f"Here is the direct breakdown sheet: {tracked_affiliate_url} — hope it saves you some headache with support!"
+                )
         if target_round >= 3:
             return (
                 f"购买地址可以直接走这个官方通道：{tracked_affiliate_url} "
@@ -333,11 +366,29 @@ def poll_and_respond_reddit_inbox(dry_run: bool = False, verbose: bool = True) -
         curr_round = state.get("current_round", 1)
         next_round = analyze_inbound_intent(body, curr_round)
 
+        # Dynamic campaign resolution based on message topic
+        msg_combined = f"{subject} {body}".lower()
+        if any(k in msg_combined for k in ("tiktok", "agency account", "spend match", "ad credit", "adgrowth", "billing hold", "$50 limit")):
+            c_name = "Adgrowth-Lab"
+            c_url = "https://adgrowth-lab.github.io/"
+            c_code = "SPENDMATCH6K"
+        elif any(k in msg_combined for k in ("golf cart", "fairway", "lsv", "curtis", "navitas", "ezgo", "club car")):
+            c_name = "Fairway Fort"
+            c_url = "https://fairwayfort.com/pages/tools"
+            c_code = ""
+        else:
+            c_name = "Just My Socks"
+            c_url = "https://justmysocks.net/members/aff.php?aff=24082"
+            c_code = "JMS9272283"
+
         # 3. Draft AI response
         ai_reply = draft_automated_reply(
             partner_handle=author,
             inbound_text=body,
             target_round=next_round,
+            campaign_name=c_name,
+            affiliate_url=c_url,
+            discount_code=c_code,
             platform="reddit"
         )
 

@@ -254,9 +254,13 @@ def format_multichannel_pack(
 
         if site_already_mentioned:
             reddit_asset_block = ""
-        elif stealth_mode in ("profile_only", "two_step"):
+        elif stealth_mode in ("profile_only", "bio_routing", "two_step"):
             reddit_asset_block = (
                 f"\n\n(Referenced the {clean_cap} specs from the {site_name} database)."
+            )
+        elif stealth_mode == "inbound_dm" or anti_ban_mode == "inbound_dm":
+            reddit_asset_block = (
+                f"\n\n(I benchmarked the {clean_cap} breakdown on a spreadsheet—feel free to shoot me a DM if you want the raw doc)."
             )
         elif anti_ban_mode == "brand_search" or (anti_ban_mode == "adaptive" and not is_asking_link) or has_invite_hook:
             reddit_asset_block = (
@@ -544,8 +548,10 @@ def generate_site_integrated_reply(
     resurrection_context = get_learned_resurrection_context(subreddit, platform)
 
     if platform in ("x", "twitter"):
-        if stealth_mode == "profile_only":
+        if stealth_mode in ("profile_only", "bio_routing"):
             cite = f'DO NOT include any links. At the end, naturally mention: "pinned the full chart/specs on my profile bio if helpful".'
+        elif stealth_mode == "inbound_dm" or anti_ban_mode == "inbound_dm":
+            cite = f'DO NOT include any links. At the end, naturally offer: "shoot me a DM if u want the comparison sheet/checklist".'
         elif anti_ban_mode == "brand_search":
             cite = f'Mention "{site_name}" casually as a lookup tool or breakdown site (e.g. "{site_name} has the state chart"). Do NOT paste long links.'
         elif anti_ban_mode == "direct_link":
@@ -577,8 +583,10 @@ Write ONLY the final tweet text to reply with:"""
         max_tok = 120
     elif platform == "forum":
         # Enthusiast Forum (vBulletin / XenForo / phpBB e.g. Buggies Gone Wild, Cartaholics)
-        if stealth_mode == "profile_only":
+        if stealth_mode in ("profile_only", "bio_routing"):
             cite_rule = f'- FORUM CITATION (STEALTH PROFILE): 100% pure technical answer. No active links in body. Mention you bookmarked the full wiring/spec PDF in your profile bio signature.'
+        elif stealth_mode == "inbound_dm" or anti_ban_mode == "inbound_dm":
+            cite_rule = f'- FORUM CITATION (INBOUND PM): 100% pure technical answer. No active links in body. Conclude naturally by offering to share the full spreadsheet or checklist via PM.'
         elif anti_ban_mode == "direct_link" and site_url:
             cite_rule = f'- FORUM CITATION (BBCODE LINK): Provide a clean BBCode link: [URL="{site_url}"]{site_name} Interactive Tool[/URL] as a technical reference.'
         else:
@@ -604,13 +612,20 @@ Write ONLY the forum response in valid BBCode markdown. No greetings or signoffs
         max_tok = 450
     else:
         # Reddit Markdown
-        if stealth_mode == "profile_only":
-            citation_rule = f"""- ANTI-BAN MODE: STEALTH PROFILE-ONLY (ZERO-LINK TROJAN STRATEGY).
+        if stealth_mode in ("profile_only", "bio_routing"):
+            citation_rule = f"""- ANTI-BAN MODE: STEALTH BIO-ROUTING (ZERO-LINK TROJAN STRATEGY).
 - CRITICAL: UNDER NO CIRCUMSTANCES include an http:// or https:// URL link!
 - Deliver 100% pure, deep technical diagnosis and exact specifications.
 - End with a natural peer sign-off pointing to your profile, e.g.:
   "Saved the full pinout schematic and 50-state checklist over on my profile bio if you need the PDF specs."
 - This guarantees 0% chance of AutoMod removal while converting high-intent users through profile visits."""
+        elif stealth_mode == "inbound_dm" or anti_ban_mode == "inbound_dm":
+            citation_rule = f"""- ANTI-BAN MODE: INBOUND DM ASSET GAP (ZERO-LINK INBOUND TROJAN).
+- CRITICAL: UNDER NO CIRCUMSTANCES include an http:// or https:// URL link!
+- Deliver 80% deep, authoritative technical diagnosis to establish instant credibility.
+- For the remaining 20%, leave a high-value asset gap (e.g. comparison spreadsheet, checklist, diagnostic matrix) and invite the reader to DM you if they want the raw doc. E.g.:
+  "Mapped out the exact {site_name} tier breakdown and fee comparison on a spreadsheet. Feel free to shoot me a DM if you want me to share the sheet."
+- When users reach out via DM, it counts as a consensual user-initiated chat with zero ban risk."""
         elif stealth_mode == "two_step":
             citation_rule = f"""- ANTI-BAN MODE: STEALTH TWO-STEP PING-PONG.
 - Step 1: Give a solid 80% technical diagnosis, but intentionally pause on the critical fork (e.g. asking for their specific controller serial number / firmware version / state jurisdiction).
@@ -662,9 +677,10 @@ ANTI-BAN & REDDIT ALGORITHM SURVIVAL RULES (CRITICAL):
    - NO emojis unless 1 common emoji fits naturally.
    - NO generic greetings ("Hey there!", "Hope this helps!").
    - Max 2-3 concise paragraphs.
-7. NATURAL PEER-TO-PEER CLOSING (ZERO SOLICITATION & ZERO SPAM TRIGGER WORDS):
-   - STRICT BAN ON SOLICITATION & DM CUES: Strictly DO NOT use proactive offering phrases like "let me know", "I can help", "happy to help", "reach out", "shoot me a DM", "DM me", or "send me a PM". These trigger AutoMod Rule 6 (No Solicitation) removals.
-   - If using STEALTH PROFILE-ONLY mode, naturally end with the profile hook (e.g., "pinned the full breakdown on my profile bio if helpful").
+7. NATURAL PEER-TO-PEER CLOSING (ZERO SPAM TRIGGER WORDS):
+   - For standard modes, avoid cold proactive solicitation (e.g. "I can help", "happy to help", "reach out", "let me know").
+   - If using STEALTH BIO-ROUTING mode, naturally end with the profile hook (e.g., "pinned the full breakdown on my profile bio if helpful").
+   - If using INBOUND DM mode, naturally conclude by inviting them to DM you for the specific promised technical spreadsheet or checklist (e.g., "feel free to shoot me a DM if you want the comparison spreadsheet").
    - Otherwise, conclude with an objective, neutral observation (e.g. "hope that clears up the learning phase nuances", "should get you back on track").
    - If citing the site/tool, keep it natural and subtle in accordance with the organic domain citation rules.
 8. STRICT INBOUND HOOK MANDATE (ZERO FALSE CLAIMS):

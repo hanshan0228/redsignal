@@ -300,8 +300,8 @@ def enqueue_reply(
         except Exception:
             pass
 
-    # Auto-generate attributed short link if listener has target site_url and not in profile_only stealth mode
-    if not short_url and listener_id and stealth_mode != "profile_only":
+    # Auto-generate attributed short link if listener has target site_url and not in zero-link stealth modes
+    if not short_url and listener_id and stealth_mode not in ("profile_only", "bio_routing", "inbound_dm"):
         try:
             from config import load_config
             cfg = load_config()
