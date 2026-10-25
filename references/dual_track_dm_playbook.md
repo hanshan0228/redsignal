@@ -47,3 +47,24 @@
 | **“竞品功能好像更多更全”** | 指出冗余度与配置复杂度 | "True, they have 100+ dials, but 90% of teams only touch these 3. You're effectively paying an enterprise tax for bloat you won't use." |
 | **“迁移成本太高，担心数据丢失”** | 交付即插即用迁移方案 | "They actually have an automated one-click CSV/API import tool. Whole migration takes under 15 minutes." |
 | **“担心是诈骗或小作坊不可靠”** | 资深玩家背书与真实退款保障 | "Been using them in production for 8 months with zero downtime. Plus they offer a 30-day money-back guarantee with no questions asked." |
+
+---
+
+## 🎯 垂直案例：TikTok 代理户与满赠补贴专项攻坚 (Adgrowth-Lab Playbook)
+
+### 3 轮攻坚话术
+1. **Round 1 (破冰交付 · 0推销)**：
+   > *"Hey [Name], saw your question on the thread regarding [billing holds / $50 daily limits / agency tiers]. Here is the direct breakdown sheet I mentioned: https://adgrowth-lab.github.io/ — no strings attached, hope it saves you some headache with support! Let me know if any numbers look off for your vertical."*
+2. **Round 2 (场景诊断 · 痛点挖掘)**：
+   > *"Quick question though — are you mostly running direct dropshipping or private-label DTC? The reason I ask is that self-serve accounts usually get hard-capped at $50/day right around the 2nd week, especially during Q4 peak bid competition. If you're planning to scale past $1k/day, standard accounts will keep flagging your payment cards. Have you guys looked into direct agency lines with Ads Manager balance deposits yet?"*
+3. **Round 3 (精准逼单 · 官方直通)**：
+   - 常规客户（日耗 < $1,000）：顺理成章送出官网认证通道 `https://adgrowth-lab.github.io/`（最高 $6,000 消耗返点匹配，3分钟快速关联）。
+   - 高预算大客（月耗 > $4,000 / 团队采购）：引荐 Telegram VIP 专人开白对接 `https://t.me/adgrowth_lab`。
+
+### TikTok 代理户 4 大专项异议化解库
+| 异议抗拒点 | 心理症结 | 核心化解策略 | 黄金标准应答 |
+|---|---|---|---|
+| **“代理户要收手续费/充值费吗？”** | 担心隐形费用被割韭菜 | 强调官方直通零中介费与 100% 余额直充 | *"Zero intermediary fees. Standard brokers charge a 3-5% markup, but through the official partner program, subsidies deposit directly into your Ads Manager balance with 100% credit transfer."* |
+| **“买过代理户第二天就封了，靠谱吗？”** | 曾买过黑卡户/假企业户，严重缺乏安全感 | 强调官方 Ads Manager 白名单与正规主体 | *"That happens when brokers sell recycled BM invites or fake business registrations. Official partner accounts come with direct TikTok Ads Manager whitelist status and clean corporate credit lines — not temporary hacked profiles."* |
+| **“我预算只有几百刀，现在开太早了吧？”** | 觉得代理户是大公司专利，有心理门槛 | 强调入门门槛极低 ($200 起) 与 50% 赠金缓冲 | *"Not at all. The lowest incentive tier kicks in at just $200 qualifying spend with a $200 credit match — effectively a 50% discount cushion for early creative testing so you don't burn cash while finding winners."* |
+| **“迁移现有的 Pixel 和广告活动会不会很麻烦？”** | 害怕数据资产报废，懒得动 | 讲解 Business Center 资产无缝共享 | *"It takes under 5 minutes. You don't rebuild your pixel; you simply share your existing Pixel ID across in TikTok Business Center. Your pixel optimization and event learning stay 100% intact."* |
