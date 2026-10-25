@@ -80,11 +80,26 @@ export default function ListenerCard({ listener, onEdit, onDelete, onToggleActiv
             </span>
           ) : (
             <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${
-              listener.anti_ban_mode === 'direct_link'
-                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              listener.stealth_mode === 'bio_routing' || listener.stealth_mode === 'profile_only'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                : listener.stealth_mode === 'inbound_dm' || listener.anti_ban_mode === 'inbound_dm'
+                ? 'bg-purple-50 text-purple-800 border border-purple-300'
+                : listener.anti_ban_mode === 'direct_link'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : listener.anti_ban_mode === 'adaptive'
+                ? 'bg-violet-50 text-violet-800 border border-violet-200'
+                : 'bg-blue-50 text-blue-800 border border-blue-200'
             }`}>
-              {listener.anti_ban_mode === 'direct_link' ? '直链' : listener.anti_ban_mode === 'adaptive' ? '智能防封' : '无痕防封'}
+              {listener.stealth_mode === 'bio_routing' || listener.stealth_mode === 'profile_only'
+                ? '🥷 Bio主页'
+                : listener.stealth_mode === 'inbound_dm' || listener.anti_ban_mode === 'inbound_dm'
+                ? '📩 逆向私信'
+                : listener.anti_ban_mode === 'direct_link'
+                ? '⚡ 直链'
+                : listener.anti_ban_mode === 'adaptive'
+                ? '🧠 智能'
+                : '🛡️ 品牌搜索'
+              }
             </span>
           )}
           {listener.dark_fleet_enabled !== false && (

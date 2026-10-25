@@ -658,6 +658,12 @@ export default function ListenerDrawer({ listener, onClose }) {
     persist(next);
   };
 
+  const updateMulti = (fields) => {
+    const next = { ...lst, ...fields };
+    setLst(next);
+    persist(next);
+  };
+
   const addKw = () => {
     const val = kwInput.trim();
     if (!val) return;
@@ -1039,12 +1045,20 @@ export default function ListenerDrawer({ listener, onClose }) {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                      {isForum ? '🌐 垂直技术论坛水手策略 (Stealth Engine)' : (isX ? '𝕏 (Twitter)' : 'Reddit') + ' 防封号投放策略 (Anti-Ban Engine)'}
+                      {isForum ? '🌐 垂直技术论坛水手策略 (Stealth Engine)' : (isX ? '𝕏 (Twitter)' : 'Reddit') + ' 流量转化与防封投放策略 (Conversion Engine)'}
                     </span>
                     <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                       {isForum
                         ? (lst.stealth_mode === 'two_step' ? '🎣 二段钓鱼排查' : lst.stealth_mode === 'direct_link' ? '⚡ BBCode 直链' : '🥷 个人主页无痕水手 (0封号)')
-                        : (lst.anti_ban_mode === 'direct_link' ? '直链模式 (高风险)' : lst.anti_ban_mode === 'adaptive' ? '智能判定' : '品牌无痕搜索 (最高安全)')
+                        : (lst.stealth_mode === 'bio_routing' || lst.stealth_mode === 'profile_only'
+                            ? '🥷 个人主页穿透 (Bio模式)'
+                            : lst.stealth_mode === 'inbound_dm' || lst.anti_ban_mode === 'inbound_dm'
+                            ? '📩 逆向受邀私信 (DM模式)'
+                            : lst.anti_ban_mode === 'direct_link'
+                            ? '⚡ 直接留落地页 (Link模式)'
+                            : lst.anti_ban_mode === 'adaptive'
+                            ? '🧠 智能场景自适应 (推荐)'
+                            : '🛡️ 品牌搜索占坑 (0外链)')
                       }
                     </span>
                   </div>
@@ -1088,42 +1102,66 @@ export default function ListenerDrawer({ listener, onClose }) {
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
                       <button
                         type="button"
-                        onClick={() => update('anti_ban_mode', 'brand_search')}
+                        onClick={() => updateMulti({ stealth_mode: 'bio_routing', anti_ban_mode: 'safe' })}
                         className={`text-xs p-2 rounded-lg border text-left transition-all ${
-                          (lst.anti_ban_mode || 'brand_search') === 'brand_search'
-                            ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900 font-medium'
+                          (lst.stealth_mode === 'bio_routing' || lst.stealth_mode === 'profile_only')
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-medium shadow-sm'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                        <div className="font-semibold flex items-center gap-1">🛡️ 品牌无痕搜索</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">不发外链，引导Google/𝕏搜品牌词，零删帖封号</div>
+                        <div className="font-semibold flex items-center gap-1">🥷 个人主页穿透 (Bio)</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">0外链、100%技术解惑，自然引导主页置顶帖落地页承接，0删帖0封号</div>
                       </button>
                       <button
                         type="button"
-                        onClick={() => update('anti_ban_mode', 'adaptive')}
+                        onClick={() => updateMulti({ stealth_mode: 'inbound_dm', anti_ban_mode: 'inbound_dm' })}
                         className={`text-xs p-2 rounded-lg border text-left transition-all ${
-                          lst.anti_ban_mode === 'adaptive'
-                            ? 'border-violet-500 bg-violet-50/50 text-violet-900 font-medium'
+                          (lst.stealth_mode === 'inbound_dm' || lst.anti_ban_mode === 'inbound_dm')
+                            ? 'border-purple-600 bg-purple-50 text-purple-950 font-medium shadow-sm'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                        <div className="font-semibold flex items-center gap-1">🧠 智能场景判定</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">仅求链接时带URL，其余发品牌名</div>
+                        <div className="font-semibold flex items-center gap-1">📩 逆向受邀私信 (DM)</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">80%技术干货+20%资产缺口邀私聊，启动1v1攻坚与异议化解，高客单首选</div>
                       </button>
                       <button
                         type="button"
-                        onClick={() => update('anti_ban_mode', 'direct_link')}
+                        onClick={() => updateMulti({ stealth_mode: 'direct_link', anti_ban_mode: 'direct_link' })}
                         className={`text-xs p-2 rounded-lg border text-left transition-all ${
-                          lst.anti_ban_mode === 'direct_link'
-                            ? 'border-amber-500 bg-amber-50/50 text-amber-900 font-medium'
+                          (lst.anti_ban_mode === 'direct_link' && lst.stealth_mode !== 'inbound_dm' && lst.stealth_mode !== 'bio_routing' && lst.stealth_mode !== 'profile_only')
+                            ? 'border-amber-600 bg-amber-50 text-amber-950 font-medium shadow-sm'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                        <div className="font-semibold flex items-center gap-1">🔗 强行直达外链</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">文末附带完整超链接，易触碰系统风控</div>
+                        <div className="font-semibold flex items-center gap-1">⚡ 直接留落地页 (Link)</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">文末直接带落地页超链接，仅限求链帖或宽松版块，临门一脚直达</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateMulti({ stealth_mode: 'direct_link', anti_ban_mode: 'adaptive' })}
+                        className={`text-xs p-2 rounded-lg border text-left transition-all ${
+                          (lst.anti_ban_mode === 'adaptive' && lst.stealth_mode !== 'inbound_dm' && lst.stealth_mode !== 'bio_routing' && lst.stealth_mode !== 'profile_only')
+                            ? 'border-violet-600 bg-violet-50 text-violet-950 font-medium shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="font-semibold flex items-center gap-1">🧠 智能动态自适应 (推荐)</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">求链带URL，常规推主页/搜品牌，账号安全与转化动态平衡的最优解</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateMulti({ stealth_mode: 'direct_link', anti_ban_mode: 'brand_search' })}
+                        className={`text-xs p-2 rounded-lg border text-left transition-all ${
+                          ((lst.anti_ban_mode || 'brand_search') === 'brand_search' && lst.stealth_mode !== 'inbound_dm' && lst.stealth_mode !== 'bio_routing' && lst.stealth_mode !== 'profile_only' && lst.anti_ban_mode !== 'adaptive' && lst.anti_ban_mode !== 'direct_link')
+                            ? 'border-blue-600 bg-blue-50 text-blue-950 font-medium shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="font-semibold flex items-center gap-1">🛡️ 品牌搜索占坑 (SEO)</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">0外链0主页，自然植入品牌词引导Google搜索，防𝕏外链算法降权</div>
                       </button>
                     </div>
                   )}
