@@ -387,7 +387,7 @@ class TestXPostingEnhancements(unittest.TestCase):
         try:
             record_rate_limit_cooldown(cred_id, 3600, "Blocked Account")
 
-            with patch("config.load_config") as mock_cfg:
+            with patch("config.load_config") as mock_cfg, patch("routes.load_config", mock_cfg):
                 mock_cfg.return_value = {
                     "listeners": [{"id": "lst1", "platform": "x", "x_credential_id": cred_id}],
                     "credentials": [{"id": cred_id, "type": "x", "auth_token": "tok", "ct0": "ct"}]

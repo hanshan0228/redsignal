@@ -497,7 +497,7 @@ def api_queue_submit_now(item_id: int) -> dict:
     platform = item.get("platform") or (lst.get("platform") if lst else "reddit") or "reddit"
 
     if platform in ("x", "twitter"):
-        cred_id = lst.get("x_credential_id") if lst else None
+        cred_id = item.get("credential_id") or (lst.get("x_credential_id") if lst else None)
         x_cred = next((c for c in cfg.get("credentials", []) if c["id"] == cred_id), None) if cred_id else None
         if not x_cred:
             x_cred = next((c for c in cfg.get("credentials", []) if c.get("type") in ("x", "twitter")), None)
@@ -507,7 +507,7 @@ def api_queue_submit_now(item_id: int) -> dict:
         cooldown_min = max(lst.get("reply_cooldown_minutes", 15), 45) if (lst and is_cookie) else (45 if is_cookie else 15)
         daily_lim = min(lst.get("daily_reply_limit", 25), 5) if (lst and is_cookie) else (5 if is_cookie else 25)
     elif platform in ("forum", "vbulletin", "phpbb", "xenforo"):
-        cred_id = lst.get("forum_credential_id") if lst else None
+        cred_id = item.get("credential_id") or (lst.get("forum_credential_id") if lst else None)
         forum_cred = next((c for c in cfg.get("credentials", []) if c["id"] == cred_id), None) if cred_id else None
         if not forum_cred:
             forum_cred = next((c for c in cfg.get("credentials", []) if c.get("type") in ("forum", "vbulletin", "phpbb", "xenforo")), None)
@@ -516,7 +516,7 @@ def api_queue_submit_now(item_id: int) -> dict:
         cooldown_min = lst.get("reply_cooldown_minutes", 15) if lst else 15
         daily_lim = lst.get("daily_reply_limit", 15) if lst else 15
     else:
-        cred_id = lst.get("reddit_credential_id") if lst else None
+        cred_id = item.get("credential_id") or (lst.get("reddit_credential_id") if lst else None)
         reddit_cred = next((c for c in cfg.get("credentials", []) if c["id"] == cred_id), None) if cred_id else None
         if not reddit_cred:
             reddit_cred = next((c for c in cfg.get("credentials", []) if c.get("type") == "reddit"), None)
