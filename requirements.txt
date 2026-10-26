@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+praw
+requests
+requests-oauthlib
+anthropic
+openai

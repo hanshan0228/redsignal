@@ -1,14 +1,48 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+.venv/
+venv/
 
-# Environment and local configs
+# App data
+data/
+*.db
+*.db-shm
+*.db-wal
+logs/
+*.log
+!frontend/src/**/logs/
+
+# Config with secrets
 .env
-*.local
+.env.*
+!.env.example
+config.json
+config.json.bak
 
-# Operating System Files
+# OS
 .DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
+
+# Preview helper (not part of the app)
+static/readme-preview.html
+
+CLAUDE.md
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+
+# Local caches and historical backups
+.pytest_cache/
+.archive/
+*.bak.*
