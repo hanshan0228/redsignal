@@ -516,7 +516,8 @@ def _run_x_listener(listener: dict, credentials: list[dict]) -> None:
             if not was_paused:
                 _status(f"[{lname}] Outside schedule window — pausing")
                 was_paused = True
-            time.sleep(60)
+            if stop.wait(60):
+                break
             continue
         if was_paused:
             _status(f"[{lname}] Entering schedule window — resuming")
@@ -659,9 +660,11 @@ def _run_x_listener(listener: dict, credentials: list[dict]) -> None:
                 except Exception as e:
                     db_log("warn", "monitor", f"X discovery error for kw '{kw}': {e}", lid, lname)
 
-            time.sleep(3)
+            if stop.wait(3):
+                break
 
-        time.sleep(25)
+        if stop.wait(25):
+            break
 
     db_log("info", "monitor", f"[{lname}] Stopped", lid, lname)
 
@@ -740,7 +743,8 @@ def _run_forum_listener(listener: dict, credentials: list[dict]) -> None:
 
     while not stop.is_set():
         if not _in_schedule(listener):
-            time.sleep(60)
+            if stop.wait(60):
+                break
             continue
 
         try:
@@ -1055,16 +1059,19 @@ def _run_forum_listener(listener: dict, credentials: list[dict]) -> None:
                             lid, lname, "telegram")
             elif resp.status_code == 403 or "cf-mitigated" in resp.headers or "Just a moment" in resp.text:
                 db_log("warn", "forum_radar", f"[{lname}] 论坛被 Cloudflare 拦截 (HTTP 403 Challenge)。若需自动抓取，建议在 Vault 论坛凭据中配置带 cf_clearance 的 Cookie；已进入智能节流冷却 (120s)", lid, lname)
-                time.sleep(120)
+                if stop.wait(120):
+                    break
                 continue
             else:
                 db_log("warn", "forum_radar", f"[{lname}] 论坛 RSS 抓取未确认成功 (HTTP {resp.status_code})", lid, lname)
-                time.sleep(60)
+                if stop.wait(60):
+                    break
                 continue
         except Exception as e:
             db_log("warn", "forum_radar", f"Forum RSS parse error: {e}", lid, lname)
 
-        time.sleep(30)
+        if stop.wait(30):
+            break
 
     db_log("info", "monitor", f"[{lname}] 论坛雷达停止", lid, lname)
 
@@ -1469,7 +1476,8 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
             if not was_paused:
                 _status(f"[{lname}] Outside schedule window — pausing")
                 was_paused = True
-            time.sleep(60)
+            if stop.wait(60):
+                break
             continue
         if was_paused:
             _status(f"[{lname}] Entering schedule window — resuming")
@@ -1485,7 +1493,8 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
 
         rss_domain = "old.reddit.com" if reddit_cookie else "www.reddit.com"
         for target_sub, is_multireddit in batches:
-            if stop.is_set(): return
+            if stop.is_set():
+                break
             ep_url = f"https://{rss_domain}/r/{target_sub}/new.rss"
             try:
                 req = _urllib_req.Request(ep_url, headers=rss_headers)
@@ -1541,7 +1550,8 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
                         db_log("warn", "monitor", f"[{lname}] 版块 r/{target_sub} 不存在 (404)，已移出巡检池", lid, lname)
                 elif "429" in err_msg:
                     _status(f"[{lname}] 触发频率限制，智能冷却 60 秒...")
-                    time.sleep(60)
+                    if stop.wait(60):
+                        break
                 else:
                     db_log("warn", "monitor", f"Fetch {target_sub} error: {e}", lid, lname)
                     # 聚合请求若遭遇网络超时或 SSL 抖动，降级单拉首要核心版块，确保核心流不中断
@@ -1572,7 +1582,8 @@ def _run_listener(listener: dict, credentials: list[dict]) -> None:
                             pass
 
         # 巡检间隔平稳休眠 35 秒
-        time.sleep(35)
+        if stop.wait(35):
+            break
     db_log("info", "monitor", f"[{lname}] Stopped", lid, lname)
     return
 
@@ -1593,12 +1604,22 @@ def start_listener(listener: dict, credentials: list[dict]) -> bool:
 def stop_listener(listener_id: str) -> None:
     if listener_id in _stop_events:
         _stop_events[listener_id].set()
+    if listener_id in _monitors:
+        t = _monitors[listener_id]
+        if t.is_alive():
+            t.join(timeout=1.5)
 
 
 def stop_all_listeners() -> None:
     for ev in _stop_events.values():
         ev.set()
+    for t in _monitors.values():
+        if t.is_alive():
+            t.join(timeout=1.5)
 
 
 def listener_statuses() -> dict[str, bool]:
-    return {lid: t.is_alive() for lid, t in _monitors.items()}
+    return {
+        lid: (t.is_alive() and not _stop_events.get(lid, threading.Event()).is_set())
+        for lid, t in _monitors.items()
+    }

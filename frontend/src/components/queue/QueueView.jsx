@@ -590,7 +590,7 @@ export default function QueueView() {
                     </div>
                     {timeInfo.postExact && (
                       <span
-                        className="text-[11px] text-slate-500 font-normal flex-shrink-0 flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded border border-slate-200/70"
+                        className="text-[11px] text-slate-500 font-normal flex-shrink-0 flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-slate-200/70"
                         title={`原帖作者发布时间: ${timeInfo.postFull || timeInfo.postExact}`}
                       >
                         🕒 发帖于 {timeInfo.postExact} {timeInfo.postRel ? `(${timeInfo.postRel})` : ''}

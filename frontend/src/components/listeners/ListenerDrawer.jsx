@@ -978,7 +978,7 @@ export default function ListenerDrawer({ listener, onClose }) {
                 <button
                   type="button"
                   onClick={openAiModal}
-                  className="text-xs text-violet-700 hover:text-violet-900 bg-white/80 hover:bg-white border border-violet-200 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors shadow-2xs"
+                  className="text-xs text-violet-700 hover:text-violet-900 bg-white hover:bg-slate-50 border border-violet-200 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors shadow-2xs"
                   title="使用 AI 深度解析该项目并自适应生成推荐配置"
                 >
                   <span>🪄</span>
@@ -1209,7 +1209,7 @@ export default function ListenerDrawer({ listener, onClose }) {
                                 className={`p-2.5 rounded-xl border text-left transition-all ${
                                   active
                                     ? 'border-amber-600 bg-white shadow-xs ring-2 ring-amber-400/40'
-                                    : 'border-amber-200/60 bg-white/70 hover:bg-white text-slate-700'
+                                    : 'border-amber-200/60 bg-white hover:bg-slate-50 text-slate-700'
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -1226,7 +1226,7 @@ export default function ListenerDrawer({ listener, onClose }) {
                       </div>
 
                       {/* 2. Interactive Stepper & Quick Pills */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white/90 p-3 rounded-xl border border-amber-200/70">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-amber-200/70">
                         {/* Cooldown Stepper */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
@@ -1360,7 +1360,7 @@ export default function ListenerDrawer({ listener, onClose }) {
                       </div>
 
                       {/* 4. Schedule Window inside Timing Panel */}
-                      <div className="bg-white/80 border border-amber-200/80 rounded-xl p-3 space-y-3">
+                      <div className="bg-white border border-amber-200/80 rounded-xl p-3 space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
